@@ -20,3 +20,7 @@ bucket, PostgreSQL 18 and its volume; tests an empty second plan and composite
 imports; then destroys everything. It is non-parallel. GitHub acceptance is
 manual, protected by an environment, and requires a billable-resource
 confirmation input.
+
+The complete five-step lifecycle last passed locally on July 27, 2026 in
+23.33 seconds. A post-run account query confirmed that no `tfacc-local-*`
+projects remained.

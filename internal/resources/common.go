@@ -2,16 +2,19 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	genqlient "github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	railway "github.com/micah5/terraform-provider-railway-next/graphql"
 	"github.com/micah5/terraform-provider-railway-next/internal/client"
 )
 
@@ -29,6 +32,19 @@ func lockEnvironmentChangeSet(environmentID string) func() {
 	lock := value.(*sync.Mutex)
 	lock.Lock()
 	return lock.Unlock
+}
+
+func previewEnvironmentChangeSet(
+	ctx context.Context,
+	graphqlClient genqlient.Client,
+	environmentID string,
+	input json.RawMessage,
+) (json.RawMessage, error) {
+	preview, err := railway.PreviewEnvironmentChangeSet(ctx, graphqlClient, environmentID, input)
+	if err != nil {
+		return nil, err
+	}
+	return preview.EnvironmentPreviewChangeSet.ChangeSet, nil
 }
 
 type timeoutOperation string

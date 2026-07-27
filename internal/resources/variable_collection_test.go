@@ -36,6 +36,8 @@ func TestVariableCollectionManyVariablesOneApply(t *testing.T) {
 			writeJSON(w, serviceFixture())
 		case "GetEnvironmentConfiguration":
 			writeJSON(w, environmentFixture())
+		case "PreviewEnvironmentChangeSet":
+			writeJSON(w, previewFixture(request.Variables["input"]))
 		case "ApplyEnvironmentChangeSet":
 			applyCalls.Add(1)
 			input := request.Variables["input"]
@@ -75,6 +77,8 @@ func TestAmbiguousMutationSuccessReconcilesByRead(t *testing.T) {
 			return serviceFixture(), nil
 		case "GetEnvironmentConfiguration":
 			return environmentFixture(), nil
+		case "PreviewEnvironmentChangeSet":
+			return previewFixture(request.Variables["input"]), nil
 		case "ApplyEnvironmentChangeSet":
 			applyCalls.Add(1)
 			// Models the server committing the mutation and the response timing
@@ -138,6 +142,14 @@ func applyFixture() map[string]any {
 		"environmentApplyChangeSet": map[string]any{
 			"id": "operation", "status": "applied", "deploymentId": "deployment",
 			"stagedPatchId": nil, "diagnostics": []any{}, "changes": []any{},
+		},
+	}}
+}
+
+func previewFixture(input any) map[string]any {
+	return map[string]any{"data": map[string]any{
+		"environmentPreviewChangeSet": map[string]any{
+			"changeSet": input, "diagnostics": []any{}, "effects": []any{},
 		},
 	}}
 }

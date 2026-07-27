@@ -1,6 +1,8 @@
 # Known Railway API limitations and assumptions
 
-- Live acceptance tests are opt-in and have not been executed in this checkout.
+- Live acceptance tests are opt-in. The disposable bucket/PostgreSQL lifecycle
+  suite last passed on July 27, 2026; broader live coverage remains on the
+  roadmap.
 - Environment configuration/change sets are opaque JSON pinned to current
   introspection and Railway TypeScript SDK v3.6.0 fixtures.
 - Current GraphQL schema has no public `bucketDelete`; deletion is an

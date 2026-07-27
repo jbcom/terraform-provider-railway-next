@@ -3167,6 +3167,39 @@ type ListVariablesResponse struct {
 // GetVariables returns ListVariablesResponse.Variables, and is useful for accessing the field via an interface.
 func (v *ListVariablesResponse) GetVariables() map[string]string { return v.Variables }
 
+// PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview includes the requested fields of the GraphQL type ChangeSetPreview.
+type PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview struct {
+	ChangeSet   json.RawMessage `json:"changeSet"`
+	Diagnostics json.RawMessage `json:"diagnostics"`
+	Effects     json.RawMessage `json:"effects"`
+}
+
+// GetChangeSet returns PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview.ChangeSet, and is useful for accessing the field via an interface.
+func (v *PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview) GetChangeSet() json.RawMessage {
+	return v.ChangeSet
+}
+
+// GetDiagnostics returns PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview.Diagnostics, and is useful for accessing the field via an interface.
+func (v *PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview) GetDiagnostics() json.RawMessage {
+	return v.Diagnostics
+}
+
+// GetEffects returns PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview.Effects, and is useful for accessing the field via an interface.
+func (v *PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview) GetEffects() json.RawMessage {
+	return v.Effects
+}
+
+// PreviewEnvironmentChangeSetResponse is returned by PreviewEnvironmentChangeSet on success.
+type PreviewEnvironmentChangeSetResponse struct {
+	// Experimental: previews an intent-level RailwayChangeSet without side effects.
+	EnvironmentPreviewChangeSet PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview `json:"environmentPreviewChangeSet"`
+}
+
+// GetEnvironmentPreviewChangeSet returns PreviewEnvironmentChangeSetResponse.EnvironmentPreviewChangeSet, and is useful for accessing the field via an interface.
+func (v *PreviewEnvironmentChangeSetResponse) GetEnvironmentPreviewChangeSet() PreviewEnvironmentChangeSetEnvironmentPreviewChangeSetChangeSetPreview {
+	return v.EnvironmentPreviewChangeSet
+}
+
 type ProjectCreateInput struct {
 	DefaultEnvironmentName *string            `json:"defaultEnvironmentName"`
 	Description            *string            `json:"description"`
@@ -4880,6 +4913,18 @@ func (v *__ListVariablesInput) GetEnvironmentId() string { return v.EnvironmentI
 // GetServiceId returns __ListVariablesInput.ServiceId, and is useful for accessing the field via an interface.
 func (v *__ListVariablesInput) GetServiceId() *string { return v.ServiceId }
 
+// __PreviewEnvironmentChangeSetInput is used internally by genqlient
+type __PreviewEnvironmentChangeSetInput struct {
+	EnvironmentId string          `json:"environmentId"`
+	Input         json.RawMessage `json:"input"`
+}
+
+// GetEnvironmentId returns __PreviewEnvironmentChangeSetInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__PreviewEnvironmentChangeSetInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetInput returns __PreviewEnvironmentChangeSetInput.Input, and is useful for accessing the field via an interface.
+func (v *__PreviewEnvironmentChangeSetInput) GetInput() json.RawMessage { return v.Input }
+
 // __RenameEnvironmentInput is used internally by genqlient
 type __RenameEnvironmentInput struct {
 	Id    string                 `json:"id"`
@@ -6294,6 +6339,44 @@ func ListVariables(
 	}
 
 	data_ = &ListVariablesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by PreviewEnvironmentChangeSet.
+const PreviewEnvironmentChangeSet_Operation = `
+mutation PreviewEnvironmentChangeSet ($environmentId: String!, $input: JSON!) {
+	environmentPreviewChangeSet(environmentId: $environmentId, input: $input) {
+		changeSet
+		diagnostics
+		effects
+	}
+}
+`
+
+func PreviewEnvironmentChangeSet(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	environmentId string,
+	input json.RawMessage,
+) (data_ *PreviewEnvironmentChangeSetResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "PreviewEnvironmentChangeSet",
+		Query:  PreviewEnvironmentChangeSet_Operation,
+		Variables: &__PreviewEnvironmentChangeSetInput{
+			EnvironmentId: environmentId,
+			Input:         input,
+		},
+	}
+
+	data_ = &PreviewEnvironmentChangeSetResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

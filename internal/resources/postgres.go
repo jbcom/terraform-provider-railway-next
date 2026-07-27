@@ -2,7 +2,9 @@ package resources
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -19,6 +21,12 @@ import (
 )
 
 const postgresMountPath = "/var/lib/postgresql/data"
+
+type postgresRemoteIDs struct {
+	ServiceID        string
+	VolumeID         string
+	VolumeInstanceID string
+}
 
 var (
 	_ resource.Resource                = (*Postgres)(nil)
@@ -117,46 +125,38 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 	defer cancel()
 	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
 	defer unlockChangeSet()
+	existingServiceID, err := r.findServiceIDByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to check for an existing Railway PostgreSQL service", client.DecodeAPIError(err).Error())
+		return
+	}
+	if existingServiceID != "" {
+		resp.Diagnostics.AddError(
+			"Railway service name already exists",
+			"A service named "+plan.Name.ValueString()+" already exists in the project. Import it instead of creating a second PostgreSQL service with the same reference namespace.",
+		)
+		return
+	}
 	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Railway environment before PostgreSQL creation", client.DecodeAPIError(err).Error())
 		return
 	}
-	image := postgresImage(plan.Version.ValueString())
-	service, err := railway.CreateService(ctx, r.client.GraphQL(), railway.ServiceCreateInput{
-		ProjectId:     plan.ProjectID.ValueString(),
-		EnvironmentId: stringPointer(plan.EnvironmentID),
-		Name:          stringPointer(plan.Name),
-		Source:        &railway.ServiceSourceInput{Image: &image},
-	})
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to create Railway PostgreSQL service", client.DecodeAPIError(err).Error())
-		return
-	}
-	plan.ServiceID = types.StringValue(service.ServiceCreate.Id)
-	plan.ID = plan.ServiceID
-
-	serviceID := plan.ServiceID.ValueString()
-	volume, err := railway.CreateVolume(ctx, r.client.GraphQL(), railway.VolumeCreateInput{
-		ProjectId:     plan.ProjectID.ValueString(),
-		EnvironmentId: stringPointer(plan.EnvironmentID),
-		ServiceId:     &serviceID,
-		MountPath:     postgresMountPath,
-		Region:        stringPointer(plan.Region),
-	})
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Railway PostgreSQL service created but volume creation failed",
-			"Service ID "+serviceID+" may require manual cleanup. "+client.DecodeAPIError(err).Error(),
-		)
-		return
-	}
-	plan.VolumeID = types.StringValue(volume.VolumeCreate.Id)
 
 	set := changeset.CreatePostgres(plan.Name.ValueString(), plan.Version.ValueString(), plan.Region.ValueString())
 	payload, err := set.JSON()
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to build Railway PostgreSQL change set", err.Error())
+		return
+	}
+	payload, err = previewEnvironmentChangeSet(
+		ctx,
+		r.client.GraphQL(),
+		plan.EnvironmentID.ValueString(),
+		payload,
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to preview Railway PostgreSQL change set", client.DecodeAPIError(err).Error())
 		return
 	}
 	message := "Terraform: create PostgreSQL " + plan.Name.ValueString()
@@ -169,15 +169,29 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 		&message,
 		&etag,
 	)
-	if err != nil {
-		if !r.refresh(ctx, &plan, &resp.Diagnostics) {
-			resp.Diagnostics.AddError(
-				"Unable to register Railway PostgreSQL",
-				"Detached service "+plan.ServiceID.ValueString()+" and volume "+plan.VolumeID.ValueString()+" may require cleanup. "+client.DecodeAPIError(err).Error(),
-			)
-			return
+	ids, reconcileErr := r.waitForPostgres(
+		ctx,
+		plan.ProjectID.ValueString(),
+		plan.EnvironmentID.ValueString(),
+		plan.Name.ValueString(),
+		time.Second,
+	)
+	if reconcileErr != nil || ids == nil {
+		detail := "Railway did not expose exactly one PostgreSQL service and attached data volume with the requested name within 60 seconds."
+		if err != nil {
+			detail += " The apply request also returned: " + client.DecodeAPIError(err).Error()
 		}
-	} else if applied.EnvironmentApplyChangeSet.DeploymentId != nil {
+		if reconcileErr != nil {
+			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
+		}
+		resp.Diagnostics.AddError("Unable to confirm Railway PostgreSQL creation", detail)
+		return
+	}
+	plan.ServiceID = types.StringValue(ids.ServiceID)
+	plan.ID = plan.ServiceID
+	plan.VolumeID = types.StringValue(ids.VolumeID)
+	plan.VolumeInstanceID = types.StringValue(ids.VolumeInstanceID)
+	if err == nil && applied.EnvironmentApplyChangeSet.DeploymentId != nil {
 		plan.DeploymentID = types.StringValue(*applied.EnvironmentApplyChangeSet.DeploymentId)
 	}
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
@@ -243,13 +257,22 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 	defer cancel()
 	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
 	defer unlockChangeSet()
+	serviceDeletedByChangeSet := false
 	environment, environmentErr := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
 	if environmentErr == nil {
 		payload, err := changeset.DeletePostgres(state.Name.ValueString(), state.Version.ValueString(), state.Region.ValueString()).JSON()
 		if err == nil {
+			payload, err = previewEnvironmentChangeSet(
+				ctx,
+				r.client.GraphQL(),
+				state.EnvironmentID.ValueString(),
+				payload,
+			)
+		}
+		if err == nil {
 			message := "Terraform: delete PostgreSQL " + state.Name.ValueString()
 			etag := environment.Environment.ConfigEtag
-			_, applyErr := railway.ApplyEnvironmentChangeSet(
+			applied, applyErr := railway.ApplyEnvironmentChangeSet(
 				ctx,
 				r.client.GraphQL(),
 				state.EnvironmentID.ValueString(),
@@ -259,6 +282,8 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			)
 			if applyErr != nil && !client.IsNotFound(applyErr) {
 				resp.Diagnostics.AddWarning("Railway PostgreSQL change-set deletion was not confirmed", client.DecodeAPIError(applyErr).Error())
+			} else if applyErr == nil {
+				serviceDeletedByChangeSet = strings.EqualFold(applied.EnvironmentApplyChangeSet.Status, "applied")
 			}
 		}
 	}
@@ -268,7 +293,7 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 			return
 		}
 	}
-	if !state.ServiceID.IsNull() {
+	if !serviceDeletedByChangeSet && !state.ServiceID.IsNull() {
 		if _, err := railway.DeleteService(ctx, r.client.GraphQL(), state.ServiceID.ValueString(), nil); err != nil && !client.IsNotFound(err) {
 			resp.Diagnostics.AddError("Unable to delete Railway PostgreSQL service", client.DecodeAPIError(err).Error())
 		}
@@ -320,7 +345,7 @@ func (r *Postgres) refresh(ctx context.Context, state *postgresModel, diagnostic
 			state.Version = types.StringValue(strings.TrimPrefix(*edge.Node.Source.Image, "ghcr.io/railwayapp-templates/postgres-ssl:"))
 		}
 		if edge.Node.Region != nil {
-			state.Region = types.StringValue(*edge.Node.Region)
+			state.Region = types.StringValue(normalizePostgresRegion(*edge.Node.Region))
 		}
 		if edge.Node.LatestDeployment != nil {
 			state.DeploymentID = types.StringValue(edge.Node.LatestDeployment.Id)
@@ -346,6 +371,9 @@ func (r *Postgres) refresh(ctx context.Context, state *postgresModel, diagnostic
 	for _, edge := range volumes.Environment.VolumeInstances.Edges {
 		if edge.Node.VolumeId == state.VolumeID.ValueString() {
 			state.VolumeInstanceID = types.StringValue(edge.Node.Id)
+			if edge.Node.Region != nil {
+				state.Region = types.StringValue(normalizePostgresRegion(*edge.Node.Region))
+			}
 			break
 		}
 	}
@@ -361,6 +389,98 @@ func resetPostgresComputedIdentifiers(state *postgresModel) {
 	state.DeploymentID = types.StringNull()
 }
 
-func postgresImage(version string) string {
-	return "ghcr.io/railwayapp-templates/postgres-ssl:" + version
+func normalizePostgresRegion(region string) string {
+	switch region {
+	case "us-west2":
+		return "sjc"
+	case "us-east4-eqdc4a":
+		return "iad"
+	case "europe-west4-drams3a":
+		return "ams"
+	case "asia-southeast1-eqsg3a":
+		return "sin"
+	default:
+		return region
+	}
+}
+
+func (r *Postgres) findServiceIDByName(ctx context.Context, projectID, name string) (string, error) {
+	result, err := railway.ListProjectServices(ctx, r.client.GraphQL(), projectID)
+	if err != nil {
+		return "", err
+	}
+	var found string
+	for _, edge := range result.Project.Services.Edges {
+		if edge.Node.Name != name {
+			continue
+		}
+		if found != "" {
+			return "", fmt.Errorf("multiple Railway services named %q", name)
+		}
+		found = edge.Node.Id
+	}
+	return found, nil
+}
+
+func (r *Postgres) findPostgres(
+	ctx context.Context,
+	projectID string,
+	environmentID string,
+	name string,
+) (*postgresRemoteIDs, error) {
+	serviceID, err := r.findServiceIDByName(ctx, projectID, name)
+	if err != nil || serviceID == "" {
+		return nil, err
+	}
+	volumes, err := railway.GetProjectVolumes(ctx, r.client.GraphQL(), projectID, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	for _, edge := range volumes.Environment.VolumeInstances.Edges {
+		instance := edge.Node
+		if instance.DeletedAt != nil || instance.ServiceId == nil || *instance.ServiceId != serviceID {
+			continue
+		}
+		if instance.MountPath != postgresMountPath {
+			continue
+		}
+		return &postgresRemoteIDs{
+			ServiceID:        serviceID,
+			VolumeID:         instance.VolumeId,
+			VolumeInstanceID: instance.Id,
+		}, nil
+	}
+	return nil, nil
+}
+
+func (r *Postgres) waitForPostgres(
+	ctx context.Context,
+	projectID string,
+	environmentID string,
+	name string,
+	interval time.Duration,
+) (*postgresRemoteIDs, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		ids, err := r.findPostgres(waitCtx, projectID, environmentID, name)
+		if err == nil && ids != nil {
+			return ids, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, nil
+		case <-ticker.C:
+		}
+	}
 }

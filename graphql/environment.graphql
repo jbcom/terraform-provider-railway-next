@@ -47,6 +47,20 @@ mutation DeleteEnvironment($id: String!) {
   environmentDelete(id: $id)
 }
 
+mutation PreviewEnvironmentChangeSet(
+  $environmentId: String!
+  $input: JSON!
+) {
+  environmentPreviewChangeSet(
+    environmentId: $environmentId
+    input: $input
+  ) {
+    changeSet
+    diagnostics
+    effects
+  }
+}
+
 mutation ApplyEnvironmentChangeSet(
   $environmentId: String!
   $input: JSON!

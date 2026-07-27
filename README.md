@@ -5,8 +5,9 @@ speaks Terraform Plugin Protocol v6 and makes typed GraphQL requests directly;
 the provider runtime contains no Node.js, Railway CLI, browser automation,
 provisioners, or shell scripts.
 
-> Development status: pre-release. The fixture-backed test suite is passing,
-> but live Railway acceptance tests have not been run in this checkout. Do not
+> Development status: pre-release and not yet published to the Terraform
+> Registry. The fixture-backed suite and guarded disposable-project
+> bucket/PostgreSQL lifecycle acceptance test passed on July 27, 2026. Do not
 > use this pre-release against an existing production project.
 
 ## Requirements

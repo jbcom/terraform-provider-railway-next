@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -117,40 +118,38 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
 	defer unlockChangeSet()
 
+	existing, err := r.findBucketByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to check for an existing Railway bucket", client.DecodeAPIError(err).Error())
+		return
+	}
+	if existing != nil {
+		resp.Diagnostics.AddError(
+			"Railway bucket name already exists",
+			"A bucket named "+plan.Name.ValueString()+" already exists in the project. Import it instead of creating a second bucket with the same reference namespace.",
+		)
+		return
+	}
+
 	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Railway environment before bucket creation", client.DecodeAPIError(err).Error())
 		return
 	}
 
-	created, err := railway.CreateBucket(ctx, r.client.GraphQL(), railway.BucketCreateInput{
-		EnvironmentId: nil,
-		Name:          stringPointer(plan.Name),
-		ProjectId:     plan.ProjectID.ValueString(),
-	})
-	if err != nil {
-		if client.IsAmbiguousMutationError(err) {
-			bucket, reconcileErr := r.findBucketByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString())
-			if reconcileErr == nil && bucket != nil {
-				plan.ID = types.StringValue(bucket.Id)
-			} else {
-				resp.Diagnostics.AddError(
-					"Ambiguous Railway bucket creation",
-					"The create request may have succeeded, but the provider could not identify exactly one bucket by name. Import or remove the possible orphan before retrying. "+client.DecodeAPIError(err).Error(),
-				)
-				return
-			}
-		} else {
-			resp.Diagnostics.AddError("Unable to create Railway bucket", client.DecodeAPIError(err).Error())
-			return
-		}
-	} else {
-		plan.ID = types.StringValue(created.BucketCreate.Id)
-	}
-
 	payload, err := changeset.RegisterBucket(plan.Name.ValueString(), plan.Region.ValueString()).JSON()
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to build Railway bucket registration", err.Error())
+		return
+	}
+	payload, err = previewEnvironmentChangeSet(
+		ctx,
+		r.client.GraphQL(),
+		plan.EnvironmentID.ValueString(),
+		payload,
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to preview Railway bucket registration", client.DecodeAPIError(err).Error())
 		return
 	}
 	message := "Terraform: register bucket " + plan.Name.ValueString()
@@ -163,16 +162,26 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		&message,
 		&etag,
 	)
-	if err != nil {
-		registered, readErr := r.isRegistered(ctx, plan.EnvironmentID.ValueString(), plan.ID.ValueString())
-		if readErr != nil || !registered {
-			resp.Diagnostics.AddError(
-				"Unable to register Railway bucket in environment",
-				"The low-level bucket exists, but Railway did not confirm environment registration. Import after resolving the environment change, or delete the orphan in Railway. "+client.DecodeAPIError(err).Error(),
-			)
-			return
+	bucket, reconcileErr := r.waitForBucketRegistration(
+		ctx,
+		plan.ProjectID.ValueString(),
+		plan.EnvironmentID.ValueString(),
+		plan.Name.ValueString(),
+		time.Second,
+	)
+	if reconcileErr != nil || bucket == nil {
+		detail := "Railway did not expose exactly one registered bucket with the requested name within 30 seconds."
+		if err != nil {
+			detail += " The apply request also returned: " + client.DecodeAPIError(err).Error()
 		}
+		if reconcileErr != nil {
+			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
+		}
+		resp.Diagnostics.AddError("Unable to confirm Railway bucket creation", detail)
+		return
 	}
+	plan.ID = types.StringValue(bucket.Id)
+	plan.Name = types.StringValue(bucket.Name)
 
 	r.setReferences(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -276,6 +285,16 @@ func (r *Bucket) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		resp.Diagnostics.AddError("Unable to build Railway bucket deletion", err.Error())
 		return
 	}
+	payload, err = previewEnvironmentChangeSet(
+		ctx,
+		r.client.GraphQL(),
+		state.EnvironmentID.ValueString(),
+		payload,
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to preview Railway bucket deletion", client.DecodeAPIError(err).Error())
+		return
+	}
 	message := "Terraform: delete bucket " + state.Name.ValueString()
 	etag := environment.Environment.ConfigEtag
 	_, err = railway.ApplyEnvironmentChangeSet(
@@ -343,6 +362,44 @@ func (r *Bucket) isRegistered(ctx context.Context, environmentID, bucketID strin
 	}
 	bucket, ok := config.Buckets[bucketID]
 	return ok && bucket != nil && !bucket.IsDeleted, nil
+}
+
+func (r *Bucket) waitForBucketRegistration(
+	ctx context.Context,
+	projectID string,
+	environmentID string,
+	name string,
+	interval time.Duration,
+) (*railway.BucketFields, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		bucket, err := r.findBucketByName(waitCtx, projectID, name)
+		if err == nil && bucket != nil {
+			registered, registrationErr := r.isRegistered(waitCtx, environmentID, bucket.Id)
+			if registrationErr == nil && registered {
+				return bucket, nil
+			}
+			if registrationErr != nil {
+				lastErr = registrationErr
+			}
+		}
+		if err != nil {
+			lastErr = err
+		}
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return nil, lastErr
+			}
+			return nil, nil
+		case <-ticker.C:
+		}
+	}
 }
 
 func (r *Bucket) setReferences(ctx context.Context, state *bucketModel, diagnostics *diag.Diagnostics) {
