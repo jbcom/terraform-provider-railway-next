@@ -74,6 +74,11 @@ func IsNotFound(err error) bool {
 	}
 }
 
+func IsStaleEnvironment(err error) bool {
+	apiError := DecodeAPIError(err)
+	return apiError != nil && apiError.Code == "STALE_ENVIRONMENT_BASE"
+}
+
 func IsAmbiguousMutationError(err error) bool {
 	return err != nil &&
 		(errors.Is(err, context.DeadlineExceeded) ||

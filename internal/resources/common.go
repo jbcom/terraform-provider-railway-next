@@ -23,6 +23,7 @@ const (
 	defaultReadTimeout   = 2 * time.Minute
 	defaultUpdateTimeout = 15 * time.Minute
 	defaultDeleteTimeout = 15 * time.Minute
+	changeSetMaxAttempts = 4
 )
 
 var environmentChangeSetLocks sync.Map
@@ -45,6 +46,72 @@ func previewEnvironmentChangeSet(
 		return nil, err
 	}
 	return preview.EnvironmentPreviewChangeSet.ChangeSet, nil
+}
+
+// applyEnvironmentChangeSet applies an intent-level change set using Railway's
+// optimistic-concurrency token. STALE_ENVIRONMENT_BASE means Railway rejected
+// the mutation before applying it, so it is safe to fetch a new token,
+// re-preview the intent, and retry. Ambiguous transport failures are returned
+// immediately for resource-specific read-after-error reconciliation.
+func applyEnvironmentChangeSet(
+	ctx context.Context,
+	graphqlClient genqlient.Client,
+	environmentID string,
+	intent json.RawMessage,
+	message string,
+) (*railway.ApplyEnvironmentChangeSetResponse, error) {
+	unlock := lockEnvironmentChangeSet(environmentID)
+	defer unlock()
+
+	var lastErr error
+	for attempt := 0; attempt < changeSetMaxAttempts; attempt++ {
+		environment, err := railway.GetEnvironmentConfiguration(ctx, graphqlClient, environmentID)
+		if err != nil {
+			return nil, err
+		}
+		payload, err := previewEnvironmentChangeSet(ctx, graphqlClient, environmentID, intent)
+		if err != nil {
+			return nil, err
+		}
+		etag := environment.Environment.ConfigEtag
+		applied, err := railway.ApplyEnvironmentChangeSet(
+			ctx,
+			graphqlClient,
+			environmentID,
+			payload,
+			&message,
+			&etag,
+		)
+		if err == nil {
+			return applied, nil
+		}
+		if !client.IsStaleEnvironment(err) {
+			return nil, err
+		}
+		lastErr = err
+		if attempt+1 < changeSetMaxAttempts {
+			if err := waitForChangeSetRetry(ctx, attempt); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return nil, fmt.Errorf(
+		"Railway environment remained stale after %d attempts: %w",
+		changeSetMaxAttempts,
+		lastErr,
+	)
+}
+
+func waitForChangeSetRetry(ctx context.Context, attempt int) error {
+	duration := 100 * time.Millisecond * time.Duration(1<<attempt)
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type timeoutOperation string

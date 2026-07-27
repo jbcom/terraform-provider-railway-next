@@ -101,6 +101,8 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	result, err := railway.CreateVolume(ctx, r.client.GraphQL(), railway.VolumeCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
 		EnvironmentId: stringPointer(plan.EnvironmentID),
@@ -162,6 +164,8 @@ func (r *Volume) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	if plan.Name.ValueString() != prior.Name.ValueString() {
 		if _, err := railway.UpdateVolume(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.VolumeUpdateInput{
 			Name: stringPointer(plan.Name),
@@ -205,6 +209,8 @@ func (r *Volume) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	_, err := railway.DeleteVolume(ctx, r.client.GraphQL(), state.ID.ValueString())
 	if err != nil && !client.IsNotFound(err) {
 		resp.Diagnostics.AddError("Unable to delete Railway volume", client.DecodeAPIError(err).Error())

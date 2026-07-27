@@ -111,6 +111,8 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	switch plan.Kind.ValueString() {
 	case "custom":
 		if plan.Domain.IsNull() || plan.Domain.IsUnknown() || plan.Domain.ValueString() == "" {
@@ -193,6 +195,8 @@ func (r *ServiceDomain) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	var err error
 	if plan.Kind.ValueString() == "custom" {
 		_, err = railway.UpdateCustomDomain(
@@ -236,6 +240,8 @@ func (r *ServiceDomain) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	var err error
 	if state.Kind.ValueString() == "custom" {
 		_, err = railway.DeleteCustomDomain(ctx, r.client.GraphQL(), state.ID.ValueString())

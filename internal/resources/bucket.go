@@ -115,9 +115,6 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	defer cancel()
-	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
-	defer unlockChangeSet()
-
 	existing, err := r.findBucketByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to check for an existing Railway bucket", client.DecodeAPIError(err).Error())
@@ -131,36 +128,18 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 
-	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read Railway environment before bucket creation", client.DecodeAPIError(err).Error())
-		return
-	}
-
 	payload, err := changeset.RegisterBucket(plan.Name.ValueString(), plan.Region.ValueString()).JSON()
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to build Railway bucket registration", err.Error())
 		return
 	}
-	payload, err = previewEnvironmentChangeSet(
-		ctx,
-		r.client.GraphQL(),
-		plan.EnvironmentID.ValueString(),
-		payload,
-	)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to preview Railway bucket registration", client.DecodeAPIError(err).Error())
-		return
-	}
 	message := "Terraform: register bucket " + plan.Name.ValueString()
-	etag := environment.Environment.ConfigEtag
-	_, err = railway.ApplyEnvironmentChangeSet(
+	_, err = applyEnvironmentChangeSet(
 		ctx,
 		r.client.GraphQL(),
 		plan.EnvironmentID.ValueString(),
 		payload,
-		&message,
-		&etag,
+		message,
 	)
 	bucket, reconcileErr := r.waitForBucketRegistration(
 		ctx,
@@ -247,6 +226,8 @@ func (r *Bucket) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockChangeSet()
 	result, err := railway.UpdateBucket(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.BucketUpdateInput{
 		Name: plan.Name.ValueString(),
 	})
@@ -270,40 +251,18 @@ func (r *Bucket) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		return
 	}
 	defer cancel()
-	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
-	defer unlockChangeSet()
-	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
-	if client.IsNotFound(err) {
-		return
-	}
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read Railway environment before bucket deletion", client.DecodeAPIError(err).Error())
-		return
-	}
 	payload, err := changeset.DeleteBucket(state.Name.ValueString(), state.Region.ValueString()).JSON()
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to build Railway bucket deletion", err.Error())
 		return
 	}
-	payload, err = previewEnvironmentChangeSet(
-		ctx,
-		r.client.GraphQL(),
-		state.EnvironmentID.ValueString(),
-		payload,
-	)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to preview Railway bucket deletion", client.DecodeAPIError(err).Error())
-		return
-	}
 	message := "Terraform: delete bucket " + state.Name.ValueString()
-	etag := environment.Environment.ConfigEtag
-	_, err = railway.ApplyEnvironmentChangeSet(
+	_, err = applyEnvironmentChangeSet(
 		ctx,
 		r.client.GraphQL(),
 		state.EnvironmentID.ValueString(),
 		payload,
-		&message,
-		&etag,
+		message,
 	)
 	if err != nil {
 		registered, readErr := r.isRegistered(ctx, state.EnvironmentID.ValueString(), state.ID.ValueString())

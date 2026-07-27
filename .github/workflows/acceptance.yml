@@ -8,7 +8,10 @@ on:
         required: true
         default: "tfacc-ci-"
       confirm_billable_resources:
-        description: "Type CREATE AND DESTROY to authorize disposable bucket/Postgres resources"
+        description: "Type CREATE AND DESTROY to authorize disposable services, bucket, and Postgres"
+        required: true
+      github_repository:
+        description: "Public GitHub owner/repository used by the two disposable services"
         required: true
 
 permissions:
@@ -38,3 +41,4 @@ jobs:
           TF_ACC: "1"
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           RAILWAY_ACC_PROJECT_PREFIX: ${{ inputs.disposable_project_prefix }}
+          RAILWAY_ACC_GITHUB_REPOSITORY: ${{ inputs.github_repository }}

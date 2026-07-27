@@ -16,13 +16,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// TestAccBucketAndPostgresLifecycle is intentionally one non-parallel test to
-// reduce Railway deployment bursts. It creates billable resources only when
-// TF_ACC=1 and the explicit disposable-project guard passes.
-func TestAccBucketAndPostgresLifecycle(t *testing.T) {
+// TestAccParallelServiceBucketAndPostgresLifecycle is intentionally one
+// non-parallel test process, while Terraform itself uses its normal parallelism
+// to exercise concurrent service, bucket, and PostgreSQL environment changes.
+// It creates billable resources only when TF_ACC=1 and the explicit
+// disposable-project guard passes.
+func TestAccParallelServiceBucketAndPostgresLifecycle(t *testing.T) {
 	prefix := os.Getenv("RAILWAY_ACC_PROJECT_PREFIX")
 	name := fmt.Sprintf("%s%d", prefix, time.Now().Unix())
-	config := acceptanceBucketPostgresConfig(name)
+	config := acceptanceParallelConfig(name, os.Getenv("RAILWAY_ACC_GITHUB_REPOSITORY"))
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -40,6 +42,11 @@ func TestAccBucketAndPostgresLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("railway_postgres.main", "service_id"),
 					resource.TestCheckResourceAttrSet("railway_postgres.main", "volume_id"),
 					resource.TestCheckResourceAttr("railway_postgres.main", "version", "18"),
+					resource.TestCheckResourceAttrSet("railway_service.api", "id"),
+					resource.TestCheckResourceAttr("railway_service.api", "repository", os.Getenv("RAILWAY_ACC_GITHUB_REPOSITORY")),
+					resource.TestCheckResourceAttrSet("railway_service.ui", "id"),
+					checkNoUnknownServiceState("railway_service.api"),
+					checkNoUnknownServiceState("railway_service.ui"),
 				),
 			},
 			{
@@ -80,6 +87,11 @@ func acceptancePreCheck(t *testing.T) {
 	if !strings.HasPrefix(prefix, "tfacc-") || len(prefix) < len("tfacc-x") {
 		t.Fatal("RAILWAY_ACC_PROJECT_PREFIX must begin with tfacc- and identify disposable projects")
 	}
+	repository := os.Getenv("RAILWAY_ACC_GITHUB_REPOSITORY")
+	parts := strings.Split(repository, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		t.Fatal("RAILWAY_ACC_GITHUB_REPOSITORY must be an explicit GitHub owner/repository")
+	}
 }
 
 func compositeImportID(resourceName string, attributes ...string) resource.ImportStateIdFunc {
@@ -104,7 +116,7 @@ func compositeImportID(resourceName string, attributes ...string) resource.Impor
 	}
 }
 
-func acceptanceBucketPostgresConfig(projectName string) string {
+func acceptanceParallelConfig(projectName, repository string) string {
 	return fmt.Sprintf(`
 provider "railway" {
   token_type = "account"
@@ -127,6 +139,28 @@ resource "railway_bucket" "cache" {
   region         = "ams"
 }
 
+resource "railway_service" "api" {
+  project_id     = railway_project.test.id
+  environment_id = railway_project.test.default_environment_id
+  name           = "tfacc-api"
+  source_type    = "github"
+  repository     = %q
+  branch         = "master"
+  config_path    = "railway.json"
+  regions        = { ams = 1 }
+}
+
+resource "railway_service" "ui" {
+  project_id     = railway_project.test.id
+  environment_id = railway_project.test.default_environment_id
+  name           = "tfacc-ui"
+  source_type    = "github"
+  repository     = %q
+  branch         = "master"
+  config_path    = "ui/railway.json"
+  regions        = { ams = 1 }
+}
+
 resource "railway_postgres" "main" {
   project_id     = railway_project.test.id
   environment_id = railway_project.test.default_environment_id
@@ -134,5 +168,5 @@ resource "railway_postgres" "main" {
   version        = "18"
   region         = "ams"
 }
-`, projectName)
+`, projectName, repository, repository)
 }

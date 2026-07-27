@@ -123,8 +123,6 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 		return
 	}
 	defer cancel()
-	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
-	defer unlockChangeSet()
 	existingServiceID, err := r.findServiceIDByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to check for an existing Railway PostgreSQL service", client.DecodeAPIError(err).Error())
@@ -137,37 +135,19 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 		)
 		return
 	}
-	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read Railway environment before PostgreSQL creation", client.DecodeAPIError(err).Error())
-		return
-	}
-
 	set := changeset.CreatePostgres(plan.Name.ValueString(), plan.Version.ValueString(), plan.Region.ValueString())
 	payload, err := set.JSON()
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to build Railway PostgreSQL change set", err.Error())
 		return
 	}
-	payload, err = previewEnvironmentChangeSet(
-		ctx,
-		r.client.GraphQL(),
-		plan.EnvironmentID.ValueString(),
-		payload,
-	)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to preview Railway PostgreSQL change set", client.DecodeAPIError(err).Error())
-		return
-	}
 	message := "Terraform: create PostgreSQL " + plan.Name.ValueString()
-	etag := environment.Environment.ConfigEtag
-	applied, err := railway.ApplyEnvironmentChangeSet(
+	applied, err := applyEnvironmentChangeSet(
 		ctx,
 		r.client.GraphQL(),
 		plan.EnvironmentID.ValueString(),
 		payload,
-		&message,
-		&etag,
+		message,
 	)
 	ids, reconcileErr := r.waitForPostgres(
 		ctx,
@@ -231,6 +211,8 @@ func (r *Postgres) Update(ctx context.Context, req resource.UpdateRequest, resp 
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	_, err := railway.UpdateService(ctx, r.client.GraphQL(), plan.ServiceID.ValueString(), railway.ServiceUpdateInput{
 		Name: stringPointer(plan.Name),
 	})
@@ -255,38 +237,25 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		return
 	}
 	defer cancel()
-	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
-	defer unlockChangeSet()
 	serviceDeletedByChangeSet := false
-	environment, environmentErr := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
-	if environmentErr == nil {
-		payload, err := changeset.DeletePostgres(state.Name.ValueString(), state.Version.ValueString(), state.Region.ValueString()).JSON()
-		if err == nil {
-			payload, err = previewEnvironmentChangeSet(
-				ctx,
-				r.client.GraphQL(),
-				state.EnvironmentID.ValueString(),
-				payload,
-			)
-		}
-		if err == nil {
-			message := "Terraform: delete PostgreSQL " + state.Name.ValueString()
-			etag := environment.Environment.ConfigEtag
-			applied, applyErr := railway.ApplyEnvironmentChangeSet(
-				ctx,
-				r.client.GraphQL(),
-				state.EnvironmentID.ValueString(),
-				payload,
-				&message,
-				&etag,
-			)
-			if applyErr != nil && !client.IsNotFound(applyErr) {
-				resp.Diagnostics.AddWarning("Railway PostgreSQL change-set deletion was not confirmed", client.DecodeAPIError(applyErr).Error())
-			} else if applyErr == nil {
-				serviceDeletedByChangeSet = strings.EqualFold(applied.EnvironmentApplyChangeSet.Status, "applied")
-			}
+	payload, err := changeset.DeletePostgres(state.Name.ValueString(), state.Version.ValueString(), state.Region.ValueString()).JSON()
+	if err == nil {
+		message := "Terraform: delete PostgreSQL " + state.Name.ValueString()
+		applied, applyErr := applyEnvironmentChangeSet(
+			ctx,
+			r.client.GraphQL(),
+			state.EnvironmentID.ValueString(),
+			payload,
+			message,
+		)
+		if applyErr != nil && !client.IsNotFound(applyErr) {
+			resp.Diagnostics.AddWarning("Railway PostgreSQL change-set deletion was not confirmed", client.DecodeAPIError(applyErr).Error())
+		} else if applyErr == nil {
+			serviceDeletedByChangeSet = strings.EqualFold(applied.EnvironmentApplyChangeSet.Status, "applied")
 		}
 	}
+	unlockEnvironment := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	if !state.VolumeID.IsNull() {
 		if _, err := railway.DeleteVolume(ctx, r.client.GraphQL(), state.VolumeID.ValueString()); err != nil && !client.IsNotFound(err) {
 			resp.Diagnostics.AddError("Unable to delete Railway PostgreSQL volume", client.DecodeAPIError(err).Error())

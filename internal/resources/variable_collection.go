@@ -256,35 +256,14 @@ func (r *VariableCollection) apply(
 		diagnostics.AddError("Unable to build Railway variable change set", err.Error())
 		return false
 	}
-	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
-	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
-	if err != nil {
-		unlockChangeSet()
-		diagnostics.AddError("Unable to read Railway environment for variables", client.DecodeAPIError(err).Error())
-		return false
-	}
-	payload, err = previewEnvironmentChangeSet(
-		ctx,
-		r.client.GraphQL(),
-		state.EnvironmentID.ValueString(),
-		payload,
-	)
-	if err != nil {
-		unlockChangeSet()
-		diagnostics.AddError("Unable to preview Railway variable collection", client.DecodeAPIError(err).Error())
-		return false
-	}
 	message := fmt.Sprintf("Terraform: update %d variables for %s", len(set.Changes), service.Service.Name)
-	etag := environment.Environment.ConfigEtag
-	_, err = railway.ApplyEnvironmentChangeSet(
+	_, err = applyEnvironmentChangeSet(
 		ctx,
 		r.client.GraphQL(),
 		state.EnvironmentID.ValueString(),
 		payload,
-		&message,
-		&etag,
+		message,
 	)
-	unlockChangeSet()
 	if err == nil {
 		return true
 	}

@@ -177,23 +177,38 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 		return
 	}
 	defer cancel()
-	source := serviceSourceInput(&plan)
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	result, err := railway.CreateService(ctx, r.client.GraphQL(), railway.ServiceCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
 		EnvironmentId: stringPointer(plan.EnvironmentID),
 		Name:          stringPointer(plan.Name),
-		Branch:        stringPointer(plan.Branch),
-		Source:        source,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create Railway service", client.DecodeAPIError(err).Error())
 		return
 	}
 	plan.ID = types.StringValue(result.ServiceCreate.Id)
+	if plan.SourceType.ValueString() != "empty" {
+		_, err = railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceConnectInput{
+			Branch: stringPointer(plan.Branch),
+			Image:  stringPointer(plan.Image),
+			Repo:   stringPointer(plan.Repository),
+		})
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Railway service created but source connection failed",
+				"The service was created with ID "+plan.ID.ValueString()+
+					", but its source could not be connected. Import or remove the orphaned service before retrying. "+
+					client.DecodeAPIError(err).Error(),
+			)
+			return
+		}
+	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	if !r.refresh(ctx, &plan, true, &resp.Diagnostics) {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -210,7 +225,7 @@ func (r *Service) Read(ctx context.Context, req resource.ReadRequest, resp *reso
 		return
 	}
 	defer cancel()
-	if !r.refresh(ctx, &state, &resp.Diagnostics) {
+	if !r.refresh(ctx, &state, false, &resp.Diagnostics) {
 		if len(resp.Diagnostics.Errors()) == 0 {
 			resp.State.RemoveResource(ctx)
 		}
@@ -232,6 +247,8 @@ func (r *Service) Update(ctx context.Context, req resource.UpdateRequest, resp *
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	if plan.Name.ValueString() != prior.Name.ValueString() {
 		_, err := railway.UpdateService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceUpdateInput{
 			Name: stringPointer(plan.Name),
@@ -258,7 +275,7 @@ func (r *Service) Update(ctx context.Context, req resource.UpdateRequest, resp *
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	if !r.refresh(ctx, &plan, true, &resp.Diagnostics) {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -275,6 +292,8 @@ func (r *Service) Delete(ctx context.Context, req resource.DeleteRequest, resp *
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	environmentID := state.EnvironmentID.ValueString()
 	_, err := railway.DeleteService(ctx, r.client.GraphQL(), state.ID.ValueString(), &environmentID)
 	if err != nil && !client.IsNotFound(err) {
@@ -348,7 +367,9 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 		return false
 	}
 
-	if !plan.MemoryGB.IsNull() || !plan.VCPUs.IsNull() {
+	memoryConfigured := !plan.MemoryGB.IsNull() && !plan.MemoryGB.IsUnknown()
+	vcpusConfigured := !plan.VCPUs.IsNull() && !plan.VCPUs.IsUnknown()
+	if memoryConfigured || vcpusConfigured {
 		_, err = railway.UpdateServiceInstanceLimits(ctx, r.client.GraphQL(), railway.ServiceInstanceLimitsUpdateInput{
 			EnvironmentId: plan.EnvironmentID.ValueString(),
 			ServiceId:     plan.ID.ValueString(),
@@ -363,7 +384,16 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 	return true
 }
 
-func (r *Service) refresh(ctx context.Context, state *serviceModel, diagnostics *diag.Diagnostics) bool {
+func (r *Service) refresh(
+	ctx context.Context,
+	state *serviceModel,
+	preserveConfiguredSource bool,
+	diagnostics *diag.Diagnostics,
+) bool {
+	configuredSourceType := state.SourceType
+	configuredRepository := state.Repository
+	configuredImage := state.Image
+	configuredBranch := state.Branch
 	result, err := railway.GetService(
 		ctx,
 		r.client.GraphQL(),
@@ -383,6 +413,7 @@ func (r *Service) refresh(ctx context.Context, state *serviceModel, diagnostics 
 	state.ID = types.StringValue(result.Service.Id)
 	state.ProjectID = types.StringValue(result.Service.ProjectId)
 	state.Name = types.StringValue(result.Service.Name)
+	resetServiceOptionalComputedState(state)
 
 	var instance *railway.ServiceInstanceFields
 	for _, edge := range result.Environment.ServiceInstances.Edges {
@@ -397,11 +428,32 @@ func (r *Service) refresh(ctx context.Context, state *serviceModel, diagnostics 
 	}
 	setServiceInstanceState(ctx, state, instance, diagnostics)
 
+	branchFound := false
 	for _, edge := range result.Service.RepoTriggers.Edges {
 		if edge.Node.EnvironmentId == state.EnvironmentID.ValueString() {
 			state.Branch = types.StringValue(edge.Node.Branch)
+			branchFound = true
 			break
 		}
+	}
+	// Railway can expose a newly-created service instance before its connected
+	// source and repo trigger converge. During Create/Update only, retain the
+	// already-known configured values to satisfy Terraform's post-apply
+	// consistency contract. Ordinary Read never preserves them and therefore
+	// remains authoritative for drift detection.
+	if preserveConfiguredSource && state.SourceType.ValueString() == "empty" &&
+		(configuredSourceType.ValueString() == "github" || configuredSourceType.ValueString() == "image") {
+		state.SourceType = configuredSourceType
+		if configuredSourceType.ValueString() == "github" {
+			state.Repository = configuredRepository
+			state.Image = types.StringNull()
+		} else {
+			state.Repository = types.StringNull()
+			state.Image = configuredImage
+		}
+	}
+	if preserveConfiguredSource && !branchFound && !configuredBranch.IsUnknown() {
+		state.Branch = configuredBranch
 	}
 	var opaque serviceEnvironmentConfig
 	if json.Unmarshal(result.Environment.Config, &opaque) == nil {
@@ -431,6 +483,33 @@ func (r *Service) refresh(ctx context.Context, state *serviceModel, diagnostics 
 		}
 	}
 	return !diagnostics.HasError()
+}
+
+func resetServiceOptionalComputedState(state *serviceModel) {
+	state.Repository = types.StringNull()
+	state.Image = types.StringNull()
+	state.Branch = types.StringNull()
+	state.RootDirectory = types.StringNull()
+	state.ConfigPath = types.StringNull()
+	state.Builder = types.StringNull()
+	state.BuildCommand = types.StringNull()
+	state.DockerfilePath = types.StringNull()
+	state.StartCommand = types.StringNull()
+	state.PreDeployCommand = types.ListNull(types.StringType)
+	state.HealthcheckPath = types.StringNull()
+	state.HealthcheckTimeout = types.Int64Null()
+	state.RestartPolicyType = types.StringNull()
+	state.RestartPolicyMaxRetry = types.Int64Null()
+	state.Region = types.StringNull()
+	state.ReplicaCount = types.Int64Null()
+	state.Regions = types.MapNull(types.Int64Type)
+	state.MemoryGB = types.Float64Null()
+	state.VCPUs = types.Float64Null()
+	state.DrainingSeconds = types.Int64Null()
+	state.OverlapSeconds = types.Int64Null()
+	state.SleepApplication = types.BoolNull()
+	state.IPV6EgressEnabled = types.BoolNull()
+	state.WatchPatterns = types.SetNull(types.StringType)
 }
 
 func setServiceInstanceState(ctx context.Context, state *serviceModel, remote *railway.ServiceInstanceFields, diagnostics *diag.Diagnostics) {
@@ -468,9 +547,13 @@ func setServiceInstanceState(ctx context.Context, state *serviceModel, remote *r
 			state.Repository = types.StringNull()
 		} else {
 			state.SourceType = types.StringValue("empty")
+			state.Repository = types.StringNull()
+			state.Image = types.StringNull()
 		}
 	} else {
 		state.SourceType = types.StringValue("empty")
+		state.Repository = types.StringNull()
+		state.Image = types.StringNull()
 	}
 	if remote.LatestDeployment != nil {
 		state.LatestDeploymentID = types.StringValue(remote.LatestDeployment.Id)
@@ -501,17 +584,6 @@ func validateServiceSource(plan *serviceModel, diagnostics *diag.Diagnostics) bo
 		}
 	}
 	return true
-}
-
-func serviceSourceInput(plan *serviceModel) *railway.ServiceSourceInput {
-	switch plan.SourceType.ValueString() {
-	case "github":
-		return &railway.ServiceSourceInput{Repo: stringPointer(plan.Repository)}
-	case "image":
-		return &railway.ServiceSourceInput{Image: stringPointer(plan.Image)}
-	default:
-		return nil
-	}
 }
 
 func sourceChanged(plan, prior *serviceModel) bool {

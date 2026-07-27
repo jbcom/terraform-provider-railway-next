@@ -103,6 +103,8 @@ func (r *Secret) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(config.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	if !r.upsert(ctx, &config, &resp.Diagnostics) {
 		return
 	}
@@ -145,6 +147,8 @@ func (r *Secret) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(config.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	if !r.upsert(ctx, &config, &resp.Diagnostics) {
 		return
 	}
@@ -163,6 +167,8 @@ func (r *Secret) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockEnvironment := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockEnvironment()
 	serviceID := state.ServiceID.ValueString()
 	_, err := railway.DeleteVariable(ctx, r.client.GraphQL(), railway.VariableDeleteInput{
 		ProjectId:     state.ProjectID.ValueString(),
