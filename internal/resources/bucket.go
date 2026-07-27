@@ -114,6 +114,8 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockChangeSet()
 
 	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
 	if err != nil {
@@ -259,6 +261,8 @@ func (r *Bucket) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		return
 	}
 	defer cancel()
+	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockChangeSet()
 	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
 	if client.IsNotFound(err) {
 		return

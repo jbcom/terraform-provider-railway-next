@@ -68,6 +68,7 @@ func (r *Project) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 			},
 			"workspace_id": schema.StringAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "Workspace in which to create the project.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -137,9 +138,34 @@ func (r *Project) Create(ctx context.Context, req resource.CreateRequest, resp *
 		resp.Diagnostics.AddError("Unable to create Railway project", client.DecodeAPIError(err).Error())
 		return
 	}
+	remote := result.ProjectCreate.ProjectFields
+	if !plan.PRDeploys.IsNull() || !plan.BotPREnvironments.IsNull() || !plan.FocusedPREnvironments.IsNull() {
+		updated, updateErr := railway.UpdateProject(ctx, r.client.GraphQL(), remote.Id, railway.ProjectUpdateInput{
+			PrDeploys:             boolPointer(plan.PRDeploys),
+			BotPrEnvironments:     boolPointer(plan.BotPREnvironments),
+			FocusedPrEnvironments: boolPointer(plan.FocusedPREnvironments),
+		})
+		if updateErr != nil {
+			_, deleteErr := railway.DeleteProject(ctx, r.client.GraphQL(), remote.Id)
+			if deleteErr != nil && !client.IsNotFound(deleteErr) {
+				plan.ID = types.StringValue(remote.Id)
+				plan.DefaultEnvironmentName = types.StringValue(*defaultName)
+				setProjectState(&plan, remote)
+				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+				resp.Diagnostics.AddError(
+					"Unable to finish creating Railway project",
+					client.DecodeAPIError(updateErr).Error()+"; rollback also failed: "+client.DecodeAPIError(deleteErr).Error(),
+				)
+				return
+			}
+			resp.Diagnostics.AddError("Unable to finish creating Railway project", client.DecodeAPIError(updateErr).Error())
+			return
+		}
+		remote = updated.ProjectUpdate.ProjectFields
+	}
 	plan.ID = types.StringValue(result.ProjectCreate.Id)
 	plan.DefaultEnvironmentName = types.StringValue(*defaultName)
-	setProjectState(&plan, result.ProjectCreate.ProjectFields)
+	setProjectState(&plan, remote)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
@@ -20,6 +21,15 @@ const (
 	defaultUpdateTimeout = 15 * time.Minute
 	defaultDeleteTimeout = 15 * time.Minute
 )
+
+var environmentChangeSetLocks sync.Map
+
+func lockEnvironmentChangeSet(environmentID string) func() {
+	value, _ := environmentChangeSetLocks.LoadOrStore(environmentID, &sync.Mutex{})
+	lock := value.(*sync.Mutex)
+	lock.Lock()
+	return lock.Unlock
+}
 
 type timeoutOperation string
 

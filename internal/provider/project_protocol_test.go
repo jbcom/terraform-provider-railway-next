@@ -54,6 +54,8 @@ resource "railway_project" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("railway_project.test", "id", "project-fixture"),
 					resource.TestCheckResourceAttr("railway_project.test", "default_environment_id", "environment-fixture"),
+					resource.TestCheckResourceAttr("railway_project.test", "workspace_id", "workspace-fixture"),
+					resource.TestCheckResourceAttr("railway_project.test", "focused_pr_environments", "false"),
 				),
 			},
 			{
@@ -61,10 +63,9 @@ resource "railway_project" "test" {
 				PlanOnly: true,
 			},
 			{
-				ResourceName:            "railway_project.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"workspace_id"},
+				ResourceName:      "railway_project.test",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config:   config,
@@ -91,6 +92,8 @@ type projectFixture struct {
 	exists      bool
 	name        string
 	description string
+	prDeploys   bool
+	focusedPR   bool
 }
 
 func (f *projectFixture) setExists(exists bool) {
@@ -120,6 +123,10 @@ func (f *projectFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.exists = true
 		f.name, _ = input["name"].(string)
 		f.description, _ = input["description"].(string)
+		// Railway chooses the workspace and may retain its PR defaults even
+		// when the create input includes different values.
+		f.prDeploys = true
+		f.focusedPR = true
 		f.writeProject(w, "projectCreate")
 	case "GetProject":
 		if !f.exists {
@@ -134,6 +141,12 @@ func (f *projectFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if description, ok := input["description"].(string); ok {
 			f.description = description
+		}
+		if prDeploys, ok := input["prDeploys"].(bool); ok {
+			f.prDeploys = prDeploys
+		}
+		if focusedPR, ok := input["focusedPrEnvironments"].(bool); ok {
+			f.focusedPR = focusedPR
 		}
 		f.writeProject(w, "projectUpdate")
 	case "DeleteProject":
@@ -152,12 +165,12 @@ func (f *projectFixture) writeProject(w http.ResponseWriter, field string) {
 				"name":                  f.name,
 				"description":           f.description,
 				"isPublic":              false,
-				"workspaceId":           nil,
+				"workspaceId":           "workspace-fixture",
 				"baseEnvironmentId":     "environment-fixture",
 				"primaryEnvironmentId":  "environment-fixture",
-				"prDeploys":             false,
+				"prDeploys":             f.prDeploys,
 				"botPrEnvironments":     false,
-				"focusedPrEnvironments": false,
+				"focusedPrEnvironments": f.focusedPR,
 				"environments": map[string]any{
 					"edges": []any{
 						map[string]any{"node": map[string]any{

@@ -115,6 +115,8 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 		return
 	}
 	defer cancel()
+	unlockChangeSet := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
+	defer unlockChangeSet()
 	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), plan.EnvironmentID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Railway environment before PostgreSQL creation", client.DecodeAPIError(err).Error())
@@ -123,7 +125,7 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 	image := postgresImage(plan.Version.ValueString())
 	service, err := railway.CreateService(ctx, r.client.GraphQL(), railway.ServiceCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
-		EnvironmentId: nil,
+		EnvironmentId: stringPointer(plan.EnvironmentID),
 		Name:          stringPointer(plan.Name),
 		Source:        &railway.ServiceSourceInput{Image: &image},
 	})
@@ -137,7 +139,7 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 	serviceID := plan.ServiceID.ValueString()
 	volume, err := railway.CreateVolume(ctx, r.client.GraphQL(), railway.VolumeCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
-		EnvironmentId: nil,
+		EnvironmentId: stringPointer(plan.EnvironmentID),
 		ServiceId:     &serviceID,
 		MountPath:     postgresMountPath,
 		Region:        stringPointer(plan.Region),
@@ -239,6 +241,8 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		return
 	}
 	defer cancel()
+	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	defer unlockChangeSet()
 	environment, environmentErr := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
 	if environmentErr == nil {
 		payload, err := changeset.DeletePostgres(state.Name.ValueString(), state.Version.ValueString(), state.Region.ValueString()).JSON()
@@ -265,8 +269,7 @@ func (r *Postgres) Delete(ctx context.Context, req resource.DeleteRequest, resp 
 		}
 	}
 	if !state.ServiceID.IsNull() {
-		environmentID := state.EnvironmentID.ValueString()
-		if _, err := railway.DeleteService(ctx, r.client.GraphQL(), state.ServiceID.ValueString(), &environmentID); err != nil && !client.IsNotFound(err) {
+		if _, err := railway.DeleteService(ctx, r.client.GraphQL(), state.ServiceID.ValueString(), nil); err != nil && !client.IsNotFound(err) {
 			resp.Diagnostics.AddError("Unable to delete Railway PostgreSQL service", client.DecodeAPIError(err).Error())
 		}
 	}
@@ -286,6 +289,11 @@ func (r *Postgres) ImportState(ctx context.Context, req resource.ImportStateRequ
 }
 
 func (r *Postgres) refresh(ctx context.Context, state *postgresModel, diagnostics *diag.Diagnostics) bool {
+	// Computed values arrive as unknown during Create and Import. Railway can
+	// register service/volume instances asynchronously, so absence is a known
+	// null rather than an unknown value after the operation completes.
+	resetPostgresComputedIdentifiers(state)
+
 	serviceID := state.ServiceID.ValueString()
 	if serviceID == "" {
 		serviceID = state.ID.ValueString()
@@ -311,7 +319,9 @@ func (r *Postgres) refresh(ctx context.Context, state *postgresModel, diagnostic
 		if edge.Node.Source != nil && edge.Node.Source.Image != nil {
 			state.Version = types.StringValue(strings.TrimPrefix(*edge.Node.Source.Image, "ghcr.io/railwayapp-templates/postgres-ssl:"))
 		}
-		state.Region = valueString(edge.Node.Region)
+		if edge.Node.Region != nil {
+			state.Region = types.StringValue(*edge.Node.Region)
+		}
 		if edge.Node.LatestDeployment != nil {
 			state.DeploymentID = types.StringValue(edge.Node.LatestDeployment.Id)
 		}
@@ -343,6 +353,12 @@ func (r *Postgres) refresh(ctx context.Context, state *postgresModel, diagnostic
 	diagnostics.Append(converted...)
 	state.References = value
 	return !diagnostics.HasError()
+}
+
+func resetPostgresComputedIdentifiers(state *postgresModel) {
+	state.VolumeInstanceID = types.StringNull()
+	state.ServiceInstanceID = types.StringNull()
+	state.DeploymentID = types.StringNull()
 }
 
 func postgresImage(version string) string {

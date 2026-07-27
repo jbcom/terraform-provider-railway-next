@@ -247,11 +247,6 @@ func (r *VariableCollection) apply(
 		diagnostics.AddError("Unable to resolve Railway service for variables", client.DecodeAPIError(err).Error())
 		return false
 	}
-	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
-	if err != nil {
-		diagnostics.AddError("Unable to read Railway environment for variables", client.DecodeAPIError(err).Error())
-		return false
-	}
 	set := changeset.VariableCollection(service.Service.Name, before, after)
 	if len(set.Changes) == 0 {
 		return true
@@ -259,6 +254,13 @@ func (r *VariableCollection) apply(
 	payload, err := set.JSON()
 	if err != nil {
 		diagnostics.AddError("Unable to build Railway variable change set", err.Error())
+		return false
+	}
+	unlockChangeSet := lockEnvironmentChangeSet(state.EnvironmentID.ValueString())
+	environment, err := railway.GetEnvironmentConfiguration(ctx, r.client.GraphQL(), state.EnvironmentID.ValueString())
+	if err != nil {
+		unlockChangeSet()
+		diagnostics.AddError("Unable to read Railway environment for variables", client.DecodeAPIError(err).Error())
 		return false
 	}
 	message := fmt.Sprintf("Terraform: update %d variables for %s", len(set.Changes), service.Service.Name)
@@ -271,6 +273,7 @@ func (r *VariableCollection) apply(
 		&message,
 		&etag,
 	)
+	unlockChangeSet()
 	if err == nil {
 		return true
 	}
