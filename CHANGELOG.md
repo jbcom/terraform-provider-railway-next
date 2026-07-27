@@ -2,7 +2,13 @@
 
 All notable changes follow Keep a Changelog and Semantic Versioning.
 
-## [Unreleased]
+## [0.1.3] - 2026-07-27
+
+- Wait for Railway's eventually consistent volume instance after
+  `railway_volume` creation instead of returning without Terraform state when
+  the volume exists but its environment attachment is not visible yet.
+- Add protocol-v6 coverage for delayed volume-instance visibility and include
+  an independently managed volume in the guarded parallel acceptance lifecycle.
 
 ## [0.1.2] - 2026-07-27
 

@@ -63,7 +63,7 @@ resource "railway_service" "api" {
 					resource.TestCheckNoResourceAttr("railway_service.api", "memory_gb"),
 					resource.TestCheckNoResourceAttr("railway_service.api", "vcpus"),
 					resource.TestCheckNoResourceAttr("railway_service.api", "pre_deploy_command"),
-					checkNoUnknownServiceState("railway_service.api"),
+					checkNoUnknownState("railway_service.api"),
 				),
 			},
 			{
@@ -74,7 +74,7 @@ resource "railway_service" "api" {
 	})
 }
 
-func checkNoUnknownServiceState(name string) resource.TestCheckFunc {
+func checkNoUnknownState(name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		instance, ok := state.RootModule().Resources[name]
 		if !ok || instance.Primary == nil {

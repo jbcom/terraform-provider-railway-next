@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -125,7 +126,13 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		}
 		plan.Name = types.StringValue(updated.VolumeUpdate.Name)
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	found, reconcileErr := r.waitForVolumeInstance(ctx, &plan, time.Second)
+	if reconcileErr != nil || !found {
+		detail := "Railway created the volume but did not expose its environment attachment within 30 seconds."
+		if reconcileErr != nil {
+			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
+		}
+		resp.Diagnostics.AddError("Unable to confirm Railway volume creation", detail)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -229,6 +236,15 @@ func (r *Volume) ImportState(ctx context.Context, req resource.ImportStateReques
 }
 
 func (r *Volume) refresh(ctx context.Context, state *volumeModel, diagnostics *diag.Diagnostics) bool {
+	found, err := r.readRemote(ctx, state)
+	if err != nil {
+		diagnostics.AddError("Unable to read Railway volume", client.DecodeAPIError(err).Error())
+		return false
+	}
+	return found
+}
+
+func (r *Volume) readRemote(ctx context.Context, state *volumeModel) (bool, error) {
 	result, err := railway.GetProjectVolumes(
 		ctx,
 		r.client.GraphQL(),
@@ -236,11 +252,10 @@ func (r *Volume) refresh(ctx context.Context, state *volumeModel, diagnostics *d
 		state.EnvironmentID.ValueString(),
 	)
 	if client.IsNotFound(err) {
-		return false
+		return false, nil
 	}
 	if err != nil {
-		diagnostics.AddError("Unable to read Railway volume", client.DecodeAPIError(err).Error())
-		return false
+		return false, err
 	}
 	foundVolume := false
 	for _, edge := range result.Project.Volumes.Edges {
@@ -252,7 +267,7 @@ func (r *Volume) refresh(ctx context.Context, state *volumeModel, diagnostics *d
 		}
 	}
 	if !foundVolume {
-		return false
+		return false, nil
 	}
 	for _, edge := range result.Environment.VolumeInstances.Edges {
 		if edge.Node.VolumeId != state.ID.ValueString() {
@@ -260,7 +275,7 @@ func (r *Volume) refresh(ctx context.Context, state *volumeModel, diagnostics *d
 		}
 		instance := edge.Node
 		if instance.DeletedAt != nil {
-			return false
+			return false, nil
 		}
 		state.VolumeInstanceID = types.StringValue(instance.Id)
 		state.EnvironmentID = types.StringValue(instance.EnvironmentId)
@@ -275,7 +290,39 @@ func (r *Volume) refresh(ctx context.Context, state *volumeModel, diagnostics *d
 		} else {
 			state.State = types.StringValue(string(*instance.State))
 		}
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
+}
+
+func (r *Volume) waitForVolumeInstance(
+	ctx context.Context,
+	state *volumeModel,
+	interval time.Duration,
+) (bool, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		candidate := *state
+		found, err := r.readRemote(waitCtx, &candidate)
+		if err == nil && found {
+			*state = candidate
+			return true, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return false, lastErr
+			}
+			return false, nil
+		case <-ticker.C:
+		}
+	}
 }

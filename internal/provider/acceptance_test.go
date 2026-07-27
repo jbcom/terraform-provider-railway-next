@@ -45,8 +45,12 @@ func TestAccParallelServiceBucketAndPostgresLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("railway_service.api", "id"),
 					resource.TestCheckResourceAttr("railway_service.api", "repository", os.Getenv("RAILWAY_ACC_GITHUB_REPOSITORY")),
 					resource.TestCheckResourceAttrSet("railway_service.ui", "id"),
-					checkNoUnknownServiceState("railway_service.api"),
-					checkNoUnknownServiceState("railway_service.ui"),
+					resource.TestCheckResourceAttrSet("railway_volume.api_data", "id"),
+					resource.TestCheckResourceAttrSet("railway_volume.api_data", "volume_instance_id"),
+					resource.TestCheckResourceAttr("railway_volume.api_data", "mount_path", "/data"),
+					checkNoUnknownState("railway_service.api"),
+					checkNoUnknownState("railway_service.ui"),
+					checkNoUnknownState("railway_volume.api_data"),
 				),
 			},
 			{
@@ -69,6 +73,12 @@ func TestAccParallelServiceBucketAndPostgresLifecycle(t *testing.T) {
 					"service_instance_id",
 					"volume_instance_id",
 				},
+			},
+			{
+				ResourceName:      "railway_volume.api_data",
+				ImportState:       true,
+				ImportStateIdFunc: compositeImportID("railway_volume.api_data", "project_id", "environment_id", "id"),
+				ImportStateVerify: true,
 			},
 			{
 				Config:   config,
@@ -159,6 +169,14 @@ resource "railway_service" "ui" {
   branch         = "master"
   config_path    = "ui/railway.json"
   regions        = { ams = 1 }
+}
+
+resource "railway_volume" "api_data" {
+  project_id     = railway_project.test.id
+  environment_id = railway_project.test.default_environment_id
+  service_id     = railway_service.api.id
+  name           = "tfacc-api-data"
+  mount_path     = "/data"
 }
 
 resource "railway_postgres" "main" {
