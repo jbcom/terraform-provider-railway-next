@@ -8,5 +8,5 @@
    archives for Linux amd64/arm64, macOS amd64/arm64, and Windows amd64.
 
 The release environment requires `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE`.
-Before changing the tentative namespace, search source, examples, docs,
+Before changing the namespace, search source, examples, docs,
 manifest/release configuration, and `main.go` for the provider address.

@@ -5,10 +5,10 @@ speaks Terraform Plugin Protocol v6 and makes typed GraphQL requests directly;
 the provider runtime contains no Node.js, Railway CLI, browser automation,
 provisioners, or shell scripts.
 
-> Development status: pre-release and not yet published to the Terraform
-> Registry. The fixture-backed suite and guarded disposable-project
-> bucket/PostgreSQL lifecycle acceptance test passed on July 27, 2026. Do not
-> use this pre-release against an existing production project.
+> Release status: initial community release. The fixture-backed suite and
+> guarded disposable-project bucket/PostgreSQL lifecycle acceptance test passed
+> on July 27, 2026. Review destructive plans carefully and begin with
+> disposable Railway projects before adopting the provider for production.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ provisioners, or shell scripts.
   write-only attributes.
 - Go 1.26.5 for provider development.
 
-The tentative distribution address is
+The distribution address is
 `registry.terraform.io/micah5/railway-next`. The recommended local provider
 name is `railway`, which keeps resource names conventional (`railway_project`,
 `railway_bucket`, and so on):

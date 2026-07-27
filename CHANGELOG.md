@@ -4,6 +4,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-27
+
 - Initial native Go provider implementation.
 - Validate the disposable bucket/PostgreSQL create, empty-plan, import, and
   destroy lifecycle against Railway.
