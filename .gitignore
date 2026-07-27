@@ -1,0 +1,9 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform-provider-railway-next
+dist/
+coverage.out
+.env
+

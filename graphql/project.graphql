@@ -1,0 +1,53 @@
+fragment ProjectFields on Project {
+  id
+  name
+  description
+  isPublic
+  workspaceId
+  baseEnvironmentId
+  primaryEnvironmentId
+  prDeploys
+  botPrEnvironments
+  focusedPrEnvironments
+  environments(first: 1000) {
+    edges {
+      node {
+        id
+        name
+        isEphemeral
+      }
+    }
+  }
+}
+
+query GetProject($id: String!) {
+  project(id: $id) {
+    ...ProjectFields
+  }
+}
+
+query ListProjects($workspaceId: String) {
+  projects(first: 1000, workspaceId: $workspaceId) {
+    edges {
+      node {
+        ...ProjectFields
+      }
+    }
+  }
+}
+
+mutation CreateProject($input: ProjectCreateInput!) {
+  projectCreate(input: $input) {
+    ...ProjectFields
+  }
+}
+
+mutation UpdateProject($id: String!, $input: ProjectUpdateInput!) {
+  projectUpdate(id: $id, input: $input) {
+    ...ProjectFields
+  }
+}
+
+mutation DeleteProject($id: String!) {
+  projectDelete(id: $id)
+}

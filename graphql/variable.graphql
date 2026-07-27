@@ -1,0 +1,24 @@
+query ListVariables(
+  $projectId: String!
+  $environmentId: String!
+  $serviceId: String
+) {
+  variables(
+    projectId: $projectId
+    environmentId: $environmentId
+    serviceId: $serviceId
+    unrendered: true
+  )
+}
+
+mutation UpsertVariableCollection($input: VariableCollectionUpsertInput!) {
+  variableCollectionUpsert(input: $input)
+}
+
+mutation UpsertVariable($input: VariableUpsertInput!) {
+  variableUpsert(input: $input)
+}
+
+mutation DeleteVariable($input: VariableDeleteInput!) {
+  variableDelete(input: $input)
+}

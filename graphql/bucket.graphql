@@ -1,0 +1,32 @@
+fragment BucketFields on Bucket {
+  id
+  name
+  projectId
+  groupId
+  createdAt
+  updatedAt
+}
+
+query ListProjectBuckets($projectId: String!) {
+  project(id: $projectId) {
+    buckets(first: 1000) {
+      edges {
+        node {
+          ...BucketFields
+        }
+      }
+    }
+  }
+}
+
+mutation CreateBucket($input: BucketCreateInput!) {
+  bucketCreate(input: $input) {
+    ...BucketFields
+  }
+}
+
+mutation UpdateBucket($id: String!, $input: BucketUpdateInput!) {
+  bucketUpdate(id: $id, input: $input) {
+    ...BucketFields
+  }
+}

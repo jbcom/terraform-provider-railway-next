@@ -1,0 +1,69 @@
+fragment VolumeFields on Volume {
+  id
+  name
+  projectId
+}
+
+fragment VolumeInstanceFields on VolumeInstance {
+  id
+  volumeId
+  environmentId
+  serviceId
+  mountPath
+  region
+  sizeMB
+  currentSizeMB
+  isPendingDeletion
+  deletedAt
+  state
+}
+
+query GetProjectVolumes($projectId: String!, $environmentId: String!) {
+  project(id: $projectId) {
+    volumes(first: 1000) {
+      edges {
+        node {
+          ...VolumeFields
+        }
+      }
+    }
+  }
+  environment(id: $environmentId) {
+    volumeInstances(first: 1000) {
+      edges {
+        node {
+          ...VolumeInstanceFields
+        }
+      }
+    }
+  }
+}
+
+mutation CreateVolume($input: VolumeCreateInput!) {
+  volumeCreate(input: $input) {
+    ...VolumeFields
+  }
+}
+
+mutation UpdateVolume($id: String!, $input: VolumeUpdateInput!) {
+  volumeUpdate(volumeId: $id, input: $input) {
+    ...VolumeFields
+  }
+}
+
+mutation UpdateVolumeInstance(
+  $id: String!
+  $environmentId: String!
+  $input: VolumeInstanceUpdateInput!
+) {
+  volumeInstanceUpdate(
+    volumeId: $id
+    environmentId: $environmentId
+    input: $input
+  )
+}
+
+mutation DeleteVolume($id: String!) {
+  volumeDelete(volumeId: $id)
+}
+

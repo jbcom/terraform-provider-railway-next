@@ -1,0 +1,75 @@
+fragment EnvironmentFields on Environment {
+  id
+  name
+  projectId
+  isEphemeral
+  deletedAt
+  configEtag
+}
+
+query GetEnvironment($id: String!) {
+  environment(id: $id) {
+    ...EnvironmentFields
+  }
+}
+
+query ListEnvironments($projectId: String!) {
+  environments(first: 1000, projectId: $projectId) {
+    edges {
+      node {
+        ...EnvironmentFields
+      }
+    }
+  }
+}
+
+query GetEnvironmentConfiguration($id: String!) {
+  environment(id: $id) {
+    ...EnvironmentFields
+    config(decryptVariables: false)
+    canvasGroupRefs
+  }
+}
+
+mutation CreateEnvironment($input: EnvironmentCreateInput!) {
+  environmentCreate(input: $input) {
+    ...EnvironmentFields
+  }
+}
+
+mutation RenameEnvironment($id: String!, $input: EnvironmentRenameInput!) {
+  environmentRename(id: $id, input: $input) {
+    ...EnvironmentFields
+  }
+}
+
+mutation DeleteEnvironment($id: String!) {
+  environmentDelete(id: $id)
+}
+
+mutation ApplyEnvironmentChangeSet(
+  $environmentId: String!
+  $input: JSON!
+  $commitMessage: String
+  $baseConfigEtag: String
+) {
+  environmentApplyChangeSet(
+    environmentId: $environmentId
+    input: $input
+    commitMessage: $commitMessage
+    baseConfigEtag: $baseConfigEtag
+  ) {
+    id
+    status
+    deploymentId
+    stagedPatchId
+    diagnostics
+    changes {
+      kind
+      path
+      summary
+      status
+      outputs
+    }
+  }
+}

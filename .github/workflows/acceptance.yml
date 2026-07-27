@@ -1,0 +1,40 @@
+name: acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      disposable_project_prefix:
+        description: "Disposable project prefix; must begin with tfacc-"
+        required: true
+        default: "tfacc-ci-"
+      confirm_billable_resources:
+        description: "Type CREATE AND DESTROY to authorize disposable bucket/Postgres resources"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: ${{ inputs.confirm_billable_resources == 'CREATE AND DESTROY' && startsWith(inputs.disposable_project_prefix, 'tfacc-') }}
+    environment: railway-acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - run: go test ./internal/provider -run '^TestAcc' -count=1 -v
+        env:
+          TF_ACC: "1"
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          RAILWAY_ACC_PROJECT_PREFIX: ${{ inputs.disposable_project_prefix }}

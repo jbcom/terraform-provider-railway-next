@@ -1,0 +1,81 @@
+fragment ServiceDomainFields on ServiceDomain {
+  id
+  domain
+  suffix
+  environmentId
+  serviceId
+  projectId
+  targetPort
+  syncStatus
+  deletedAt
+}
+
+fragment CustomDomainFields on CustomDomain {
+  id
+  domain
+  environmentId
+  serviceId
+  projectId
+  targetPort
+  deletedAt
+  syncStatus
+  status {
+    verificationDnsHost
+    verificationToken
+  }
+}
+
+query ListDomains(
+  $projectId: String!
+  $environmentId: String!
+  $serviceId: String!
+) {
+  domains(
+    projectId: $projectId
+    environmentId: $environmentId
+    serviceId: $serviceId
+  ) {
+    serviceDomains {
+      ...ServiceDomainFields
+    }
+    customDomains {
+      ...CustomDomainFields
+    }
+  }
+}
+
+mutation CreateServiceDomain($input: ServiceDomainCreateInput!) {
+  serviceDomainCreate(input: $input) {
+    ...ServiceDomainFields
+  }
+}
+
+mutation UpdateServiceDomain($input: ServiceDomainUpdateInput!) {
+  serviceDomainUpdate(input: $input)
+}
+
+mutation DeleteServiceDomain($id: String!) {
+  serviceDomainDelete(id: $id)
+}
+
+mutation CreateCustomDomain($input: CustomDomainCreateInput!) {
+  customDomainCreate(input: $input) {
+    ...CustomDomainFields
+  }
+}
+
+mutation UpdateCustomDomain(
+  $id: String!
+  $environmentId: String!
+  $targetPort: Int
+) {
+  customDomainUpdate(
+    id: $id
+    environmentId: $environmentId
+    targetPort: $targetPort
+  )
+}
+
+mutation DeleteCustomDomain($id: String!) {
+  customDomainDelete(id: $id)
+}

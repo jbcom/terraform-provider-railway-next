@@ -1,0 +1,12 @@
+terraform-provider-railway-next
+
+This project includes an independent Go implementation of Railway environment
+graph and change-set behavior informed by the public source of Railway's
+MIT-licensed railway-ts-sdk:
+
+  https://github.com/railwayapp/railway-ts-sdk
+  Version studied: v3.6.0
+  Commit studied: dd3a11ea140059149079a91045efc454b21cdbc4
+
+No source code from the TypeScript SDK is imported or executed by the provider.
+The SDK's MIT license remains available in its upstream repository.

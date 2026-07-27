@@ -1,0 +1,12 @@
+query GetDeploymentStatus($id: String!) {
+  deployment(id: $id) {
+    id
+    status
+    createdAt
+    updatedAt
+    serviceId
+    environmentId
+    projectId
+  }
+}
+

@@ -1,0 +1,123 @@
+fragment ServiceFields on Service {
+  id
+  name
+  projectId
+  icon
+  deletedAt
+}
+
+fragment ServiceInstanceFields on ServiceInstance {
+  id
+  environmentId
+  serviceId
+  serviceName
+  buildCommand
+  builder
+  dockerfilePath
+  drainingSeconds
+  healthcheckPath
+  healthcheckTimeout
+  ipv6EgressEnabled
+  numReplicas
+  overlapSeconds
+  preDeployCommand
+  railwayConfigFile
+  region
+  restartPolicyMaxRetries
+  restartPolicyType
+  rootDirectory
+  sleepApplication
+  source {
+    image
+    repo
+  }
+  startCommand
+  watchPatterns
+  latestDeployment {
+    id
+    status
+    createdAt
+  }
+}
+
+query GetService($id: String!, $environmentId: String!) {
+  service(id: $id) {
+    ...ServiceFields
+    repoTriggers(first: 1000) {
+      edges {
+        node {
+          id
+          environmentId
+          branch
+          repository
+        }
+      }
+    }
+  }
+  environment(id: $environmentId) {
+    config(decryptVariables: false)
+    serviceInstances(first: 1000) {
+      edges {
+        node {
+          ...ServiceInstanceFields
+        }
+      }
+    }
+  }
+  limitOverride: serviceInstanceLimitOverride(
+    environmentId: $environmentId
+    serviceId: $id
+  )
+}
+
+query ListProjectServices($projectId: String!) {
+  project(id: $projectId) {
+    services(first: 1000) {
+      edges {
+        node {
+          ...ServiceFields
+        }
+      }
+    }
+  }
+}
+
+mutation CreateService($input: ServiceCreateInput!) {
+  serviceCreate(input: $input) {
+    ...ServiceFields
+  }
+}
+
+mutation UpdateService($id: String!, $input: ServiceUpdateInput!) {
+  serviceUpdate(id: $id, input: $input) {
+    ...ServiceFields
+  }
+}
+
+mutation ConnectService($id: String!, $input: ServiceConnectInput!) {
+  serviceConnect(id: $id, input: $input) {
+    ...ServiceFields
+  }
+}
+
+mutation UpdateServiceInstance(
+  $environmentId: String!
+  $serviceId: String!
+  $input: ServiceInstanceUpdateInput!
+) {
+  serviceInstanceUpdate(
+    environmentId: $environmentId
+    serviceId: $serviceId
+    input: $input
+  )
+}
+
+mutation UpdateServiceInstanceLimits(
+  $input: ServiceInstanceLimitsUpdateInput!
+) {
+  serviceInstanceLimitsUpdate(input: $input)
+}
+
+mutation DeleteService($id: String!, $environmentId: String) {
+  serviceDelete(id: $id, environmentId: $environmentId)
+}
