@@ -1,3 +1,4 @@
+.DS_Store
 .terraform/
 *.tfstate
 *.tfstate.*
@@ -6,4 +7,3 @@ terraform-provider-railway-next
 dist/
 coverage.out
 .env
-
