@@ -47,7 +47,7 @@ func (p *RailwayProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RailwayProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Native Go provider for Railway's GraphQL API.",
+		MarkdownDescription: "Native Go provider for Railway's GraphQL API. This is an independent community provider and is not affiliated with or endorsed by Railway Corporation.",
 		Attributes: map[string]schema.Attribute{
 			"token": schema.StringAttribute{
 				Optional:            true,

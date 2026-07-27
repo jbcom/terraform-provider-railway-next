@@ -5,6 +5,9 @@ speaks Terraform Plugin Protocol v6 and makes typed GraphQL requests directly;
 the provider runtime contains no Node.js, Railway CLI, browser automation,
 provisioners, or shell scripts.
 
+This is an independent community provider and is not affiliated with or
+endorsed by Railway Corporation.
+
 > Release status: initial community release. The fixture-backed suite and
 > guarded disposable-project bucket/PostgreSQL lifecycle acceptance test passed
 > on July 27, 2026. Review destructive plans carefully and begin with

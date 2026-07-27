@@ -4,6 +4,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-27
+
+- Clarify that this is an independent community provider with no Railway
+  Corporation affiliation or endorsement.
+
 ## [0.1.0] - 2026-07-27
 
 - Initial native Go provider implementation.
