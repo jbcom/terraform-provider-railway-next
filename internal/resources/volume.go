@@ -116,12 +116,26 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	plan.ID = types.StringValue(result.VolumeCreate.Id)
+
+	// The volume exists in Railway now. Every failure below must still record
+	// it — a volume Terraform has lost track of is a disk that cannot be
+	// resized, renamed or destroyed through the provider, and it keeps costing
+	// money while being invisible to the configuration that created it.
+	saveState := func() {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	}
+
 	if plan.Name.ValueString() != result.VolumeCreate.Name {
 		updated, updateErr := railway.UpdateVolume(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.VolumeUpdateInput{
 			Name: stringPointer(plan.Name),
 		})
 		if updateErr != nil {
+			// SAVE THE NAME RAILWAY ACTUALLY GAVE IT, not the one that was
+			// asked for. Recording the requested name would make the next plan
+			// see no drift and never retry the rename.
+			plan.Name = types.StringValue(result.VolumeCreate.Name)
 			resp.Diagnostics.AddError("Railway volume created but naming failed", client.DecodeAPIError(updateErr).Error())
+			saveState()
 			return
 		}
 		plan.Name = types.StringValue(updated.VolumeUpdate.Name)
@@ -133,9 +147,10 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
 		}
 		resp.Diagnostics.AddError("Unable to confirm Railway volume creation", detail)
+		saveState()
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	saveState()
 }
 
 func (r *Volume) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

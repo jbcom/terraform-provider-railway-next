@@ -189,6 +189,27 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 		return
 	}
 	plan.ID = types.StringValue(result.ServiceCreate.Id)
+
+	// The service exists in Railway now, so every failure path below must still
+	// record it in state.
+	//
+	// Returning early after a successful create makes Terraform discard the plan
+	// and persist nothing. The service is real, Terraform does not know about
+	// it, and the next apply fails with `A service named "x" already exists in
+	// this project` — a loop with no way out except deleting the service by
+	// hand, which is exactly what the previous error message had to ask for.
+	//
+	// Saving the partial state means a retry updates the service it already
+	// created. The apply still fails and still reports why; the failure is
+	// simply recoverable rather than terminal.
+	//
+	// This is the usual convention for a resource whose creation is not one
+	// atomic call: persist as soon as the remote object exists, then continue
+	// configuring it.
+	saveState := func() {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	}
+
 	if plan.SourceType.ValueString() != "empty" {
 		_, err = railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceConnectInput{
 			Branch: stringPointer(plan.Branch),
@@ -199,19 +220,23 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 			resp.Diagnostics.AddError(
 				"Railway service created but source connection failed",
 				"The service was created with ID "+plan.ID.ValueString()+
-					", but its source could not be connected. Import or remove the orphaned service before retrying. "+
+					" and has been saved to state. Its source could not be connected; "+
+					"correct the problem and apply again to retry the connection. "+
 					client.DecodeAPIError(err).Error(),
 			)
+			saveState()
 			return
 		}
 	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
+		saveState()
 		return
 	}
 	if !r.refresh(ctx, &plan, true, &resp.Diagnostics) {
+		saveState()
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	saveState()
 }
 
 func (r *Service) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

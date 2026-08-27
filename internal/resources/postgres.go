@@ -174,10 +174,15 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 	if err == nil && applied.EnvironmentApplyChangeSet.DeploymentId != nil {
 		plan.DeploymentID = types.StringValue(*applied.EnvironmentApplyChangeSet.DeploymentId)
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	// The database exists now. A failed refresh must not discard it — a
+	// PostgreSQL service Terraform has no record of is one that cannot be
+	// renamed, updated or destroyed through the provider, and the next apply
+	// collides with it by name.
+	refreshed := r.refresh(ctx, &plan, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if !refreshed {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *Postgres) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

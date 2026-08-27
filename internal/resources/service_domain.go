@@ -144,6 +144,10 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 		plan.ID = types.StringValue(result.ServiceDomainCreate.Id)
 		plan.Domain = types.StringValue(result.ServiceDomainCreate.Domain)
+
+		// The domain exists now. A domain Terraform has lost track of is
+		// serving traffic that no configuration describes — and for a custom
+		// domain it also holds the name, so the next apply cannot recreate it.
 		if !plan.Subdomain.IsNull() && !plan.Subdomain.IsUnknown() {
 			_, err = railway.UpdateServiceDomain(ctx, r.client.GraphQL(), railway.ServiceDomainUpdateInput{
 				ServiceDomainId: plan.ID.ValueString(),
@@ -154,14 +158,16 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 			})
 			if err != nil {
 				resp.Diagnostics.AddError("Railway domain created but requested subdomain failed", client.DecodeAPIError(err).Error())
+				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 				return
 			}
 		}
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	refreshed := r.refresh(ctx, &plan, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if !refreshed {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *ServiceDomain) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
