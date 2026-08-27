@@ -206,7 +206,21 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 	// This is the usual convention for a resource whose creation is not one
 	// atomic call: persist as soon as the remote object exists, then continue
 	// configuring it.
+	// **EVERY VALUE MUST BE KNOWN WHEN STATE IS WRITTEN.** Terraform rejects an
+	// apply result that still contains an unknown:
+	//
+	//   Provider returned invalid result object after apply … the provider
+	//   still indicated an unknown value for … .builder
+	//
+	// On the happy path `refresh` resolves those from Railway. On a failure
+	// path it has not run, so anything Optional+Computed the plan left unknown
+	// is still unknown — and persisting that is a second bug rather than a fix.
+	//
+	// `ResolveUnknowns` nulls ONLY the unknowns, leaving configured values
+	// alone. Nulling everything would discard the practitioner's own
+	// configuration from state, which is worse than the orphan being fixed.
 	saveState := func() {
+		ResolveUnknowns(&plan)
 		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	}
 

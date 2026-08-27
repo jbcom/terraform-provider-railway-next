@@ -179,6 +179,7 @@ func (r *Postgres) Create(ctx context.Context, req resource.CreateRequest, resp 
 	// renamed, updated or destroyed through the provider, and the next apply
 	// collides with it by name.
 	refreshed := r.refresh(ctx, &plan, &resp.Diagnostics)
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	if !refreshed {
 		return
@@ -228,6 +229,7 @@ func (r *Postgres) Update(ctx context.Context, req resource.UpdateRequest, resp 
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

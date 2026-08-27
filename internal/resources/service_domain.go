@@ -158,12 +158,14 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 			})
 			if err != nil {
 				resp.Diagnostics.AddError("Railway domain created but requested subdomain failed", client.DecodeAPIError(err).Error())
+				ResolveUnknowns(&plan)
 				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 				return
 			}
 		}
 	}
 	refreshed := r.refresh(ctx, &plan, &resp.Diagnostics)
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	if !refreshed {
 		return
@@ -232,6 +234,7 @@ func (r *ServiceDomain) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

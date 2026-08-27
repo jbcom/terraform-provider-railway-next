@@ -122,6 +122,12 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	// resized, renamed or destroyed through the provider, and it keeps costing
 	// money while being invisible to the configuration that created it.
 	saveState := func() {
+		// EVERY VALUE MUST BE KNOWN when state is written — see
+		// `ResolveUnknowns`. On a failure path the refresh has not run, so the
+		// plan's unknowns would otherwise reach state and Terraform would
+		// reject the apply result.
+		ResolveUnknowns(&plan)
+		ResolveUnknowns(&plan)
 		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	}
 
@@ -217,6 +223,7 @@ func (r *Volume) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

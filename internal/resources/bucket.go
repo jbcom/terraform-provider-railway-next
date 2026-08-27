@@ -184,6 +184,7 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 				detail+" The bucket was found on a final check and has been saved to state; "+
 					"apply again to finish configuring it.",
 			)
+			ResolveUnknowns(&plan)
 			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 			return
 		}
@@ -200,6 +201,7 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	// with `Railway bucket name already exists`, which Railway holds through
 	// its delayed deletion window.
 	r.setReferences(ctx, &plan, &resp.Diagnostics)
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -271,6 +273,7 @@ func (r *Bucket) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 	}
 	plan.Name = types.StringValue(result.BucketUpdate.Name)
 	r.setReferences(ctx, &plan, &resp.Diagnostics)
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
