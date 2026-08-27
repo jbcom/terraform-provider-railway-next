@@ -162,10 +162,12 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	plan.ID = types.StringValue(bucket.Id)
 	plan.Name = types.StringValue(bucket.Name)
 
+	// The bucket exists in Railway now, so it belongs in state even if reading
+	// its references fails. Without this, a reference lookup error leaves a
+	// registered bucket Terraform has no record of — and the next apply fails
+	// with `Railway bucket name already exists`, which Railway holds through
+	// its delayed deletion window.
 	r.setReferences(ctx, &plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

@@ -2,6 +2,19 @@
 
 All notable changes follow Keep a Changelog and Semantic Versioning.
 
+## [Unreleased]
+
+- Persist Terraform state for every resource that is created remotely but not
+  fully configured, generalising the `railway_volume` fix in 0.1.3 to
+  `railway_service`, `railway_bucket`, `railway_postgres` and
+  `railway_service_domain`. A source-connect, rename, reference-read or
+  reconciliation failure after creation no longer discards the object from
+  state, so a retry updates what it already made instead of failing with
+  "already exists" until the object is deleted by hand.
+- Add a static test that rejects any `Create` returning on a path that has not
+  persisted state after the remote object exists, so a new resource cannot
+  reintroduce the pattern.
+
 ## [0.1.3] - 2026-07-27
 
 - Wait for Railway's eventually consistent volume instance after
