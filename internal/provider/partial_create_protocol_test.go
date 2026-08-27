@@ -161,6 +161,13 @@ func (f *partialCreateFixture) serveHTTP(w http.ResponseWriter, r *http.Request)
 		}
 		_, _ = io.WriteString(w, `{"data":{"serviceInstanceUpdate":true}}`)
 
+	case "GetEnvironmentPrivateNetworks":
+		// **THE FIXTURE REPORTS NO PRIVATE NETWORK**, which is a real state:
+		// private networking can be disabled. `privatenet.Read` treats
+		// anything other than exactly one network as "no address to report"
+		// rather than an error, so this exercises that path.
+		_, _ = io.WriteString(w, `{"data":{"privateNetworks":[]}}`)
+
 	case "GetService":
 		if !f.exists {
 			_, _ = io.WriteString(w, `{"errors":[{"message":"not found","extensions":{"code":"NOT_FOUND"}}]}`)

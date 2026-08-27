@@ -132,6 +132,13 @@ func (f *deploymentTriggerFixture) serveHTTP(w http.ResponseWriter, r *http.Requ
 			"data": map[string]any{"deploymentTriggerCreate": trigger()},
 		})
 
+	case "GetEnvironmentPrivateNetworks":
+		// **THE FIXTURE REPORTS NO PRIVATE NETWORK**, which is a real state:
+		// private networking can be disabled. `privatenet.Read` treats
+		// anything other than exactly one network as "no address to report"
+		// rather than an error, so this exercises that path.
+		_, _ = io.WriteString(w, `{"data":{"privateNetworks":[]}}`)
+
 	case "GetService":
 		edges := []any{}
 		if f.exists {

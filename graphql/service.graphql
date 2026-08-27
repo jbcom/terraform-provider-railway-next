@@ -11,6 +11,16 @@ fragment ServiceInstanceFields on ServiceInstance {
   environmentId
   serviceId
   serviceName
+  # **HAS THIS SERVICE EVER RUN?** Railway's own description says it
+  # *"distinguishes a service that was torn down"* from one that has never
+  # deployed — and `latestDeployment` is null for BOTH, so without this the two
+  # are indistinguishable through the API.
+  #
+  # That distinction is not academic. A service with a repository attached and
+  # no deployment trigger sits at `latestDeployment: null` forever while
+  # reporting as correctly configured, and the only way to tell it apart from a
+  # service whose deployments were removed is this field.
+  hasEverDeployed
   buildCommand
   builder
   dockerfilePath

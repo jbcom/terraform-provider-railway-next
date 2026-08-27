@@ -1837,6 +1837,43 @@ func (v *GetEnvironmentEnvironment) __premarshalJSON() (*__premarshalGetEnvironm
 	return &retval, nil
 }
 
+// GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork includes the requested fields of the GraphQL type PrivateNetwork.
+type GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork struct {
+	PublicId  string      `json:"publicId"`
+	Name      string      `json:"name"`
+	DnsName   string      `json:"dnsName"`
+	NetworkId json.Number `json:"networkId"`
+}
+
+// GetPublicId returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.PublicId, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetPublicId() string {
+	return v.PublicId
+}
+
+// GetName returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.Name, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetName() string { return v.Name }
+
+// GetDnsName returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.DnsName, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetDnsName() string {
+	return v.DnsName
+}
+
+// GetNetworkId returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.NetworkId, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetNetworkId() json.Number {
+	return v.NetworkId
+}
+
+// GetEnvironmentPrivateNetworksResponse is returned by GetEnvironmentPrivateNetworks on success.
+type GetEnvironmentPrivateNetworksResponse struct {
+	// List private networks for an environment.
+	PrivateNetworks []GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork `json:"privateNetworks"`
+}
+
+// GetPrivateNetworks returns GetEnvironmentPrivateNetworksResponse.PrivateNetworks, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksResponse) GetPrivateNetworks() []GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork {
+	return v.PrivateNetworks
+}
+
 // GetEnvironmentResponse is returned by GetEnvironment on success.
 type GetEnvironmentResponse struct {
 	// Find a single environment
@@ -2312,6 +2349,11 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	return v.ServiceInstanceFields.ServiceName
 }
 
+// GetHasEverDeployed returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.HasEverDeployed, and is useful for accessing the field via an interface.
+func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetHasEverDeployed() bool {
+	return v.ServiceInstanceFields.HasEverDeployed
+}
+
 // GetBuildCommand returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.BuildCommand, and is useful for accessing the field via an interface.
 func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetBuildCommand() *string {
 	return v.ServiceInstanceFields.BuildCommand
@@ -2446,6 +2488,8 @@ type __premarshalGetServiceEnvironmentServiceInstancesEnvironmentServiceInstance
 
 	ServiceName string `json:"serviceName"`
 
+	HasEverDeployed bool `json:"hasEverDeployed"`
+
 	BuildCommand *string `json:"buildCommand"`
 
 	Builder Builder `json:"builder"`
@@ -2502,6 +2546,7 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	retval.EnvironmentId = v.ServiceInstanceFields.EnvironmentId
 	retval.ServiceId = v.ServiceInstanceFields.ServiceId
 	retval.ServiceName = v.ServiceInstanceFields.ServiceName
+	retval.HasEverDeployed = v.ServiceInstanceFields.HasEverDeployed
 	retval.BuildCommand = v.ServiceInstanceFields.BuildCommand
 	retval.Builder = v.ServiceInstanceFields.Builder
 	retval.DockerfilePath = v.ServiceInstanceFields.DockerfilePath
@@ -2523,6 +2568,37 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	retval.WatchPatterns = v.ServiceInstanceFields.WatchPatterns
 	retval.LatestDeployment = v.ServiceInstanceFields.LatestDeployment
 	return &retval, nil
+}
+
+// GetServicePrivateEndpointPrivateNetworkEndpoint includes the requested fields of the GraphQL type PrivateNetworkEndpoint.
+type GetServicePrivateEndpointPrivateNetworkEndpoint struct {
+	DnsName    string                           `json:"dnsName"`
+	PrivateIps []string                         `json:"privateIps"`
+	SyncStatus PrivateNetworkEndpointSyncStatus `json:"syncStatus"`
+}
+
+// GetDnsName returns GetServicePrivateEndpointPrivateNetworkEndpoint.DnsName, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetDnsName() string { return v.DnsName }
+
+// GetPrivateIps returns GetServicePrivateEndpointPrivateNetworkEndpoint.PrivateIps, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetPrivateIps() []string {
+	return v.PrivateIps
+}
+
+// GetSyncStatus returns GetServicePrivateEndpointPrivateNetworkEndpoint.SyncStatus, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetSyncStatus() PrivateNetworkEndpointSyncStatus {
+	return v.SyncStatus
+}
+
+// GetServicePrivateEndpointResponse is returned by GetServicePrivateEndpoint on success.
+type GetServicePrivateEndpointResponse struct {
+	// Get a private network endpoint for a service instance.
+	PrivateNetworkEndpoint *GetServicePrivateEndpointPrivateNetworkEndpoint `json:"privateNetworkEndpoint"`
+}
+
+// GetPrivateNetworkEndpoint returns GetServicePrivateEndpointResponse.PrivateNetworkEndpoint, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointResponse) GetPrivateNetworkEndpoint() *GetServicePrivateEndpointPrivateNetworkEndpoint {
+	return v.PrivateNetworkEndpoint
 }
 
 // GetServiceResponse is returned by GetService on success.
@@ -3548,6 +3624,26 @@ func (v *PreviewEnvironmentChangeSetResponse) GetEnvironmentPreviewChangeSet() P
 	return v.EnvironmentPreviewChangeSet
 }
 
+type PrivateNetworkEndpointSyncStatus string
+
+const (
+	PrivateNetworkEndpointSyncStatusActive      PrivateNetworkEndpointSyncStatus = "ACTIVE"
+	PrivateNetworkEndpointSyncStatusCreating    PrivateNetworkEndpointSyncStatus = "CREATING"
+	PrivateNetworkEndpointSyncStatusDeleted     PrivateNetworkEndpointSyncStatus = "DELETED"
+	PrivateNetworkEndpointSyncStatusDeleting    PrivateNetworkEndpointSyncStatus = "DELETING"
+	PrivateNetworkEndpointSyncStatusUnspecified PrivateNetworkEndpointSyncStatus = "UNSPECIFIED"
+	PrivateNetworkEndpointSyncStatusUpdating    PrivateNetworkEndpointSyncStatus = "UPDATING"
+)
+
+var AllPrivateNetworkEndpointSyncStatus = []PrivateNetworkEndpointSyncStatus{
+	PrivateNetworkEndpointSyncStatusActive,
+	PrivateNetworkEndpointSyncStatusCreating,
+	PrivateNetworkEndpointSyncStatusDeleted,
+	PrivateNetworkEndpointSyncStatusDeleting,
+	PrivateNetworkEndpointSyncStatusUnspecified,
+	PrivateNetworkEndpointSyncStatusUpdating,
+}
+
 type ProjectCreateInput struct {
 	DefaultEnvironmentName *string            `json:"defaultEnvironmentName"`
 	Description            *string            `json:"description"`
@@ -4061,10 +4157,15 @@ func (v *ServiceFields) GetDeletedAt() *string { return v.DeletedAt }
 
 // ServiceInstanceFields includes the GraphQL fields of ServiceInstance requested by the fragment ServiceInstanceFields.
 type ServiceInstanceFields struct {
-	Id                      string                                    `json:"id"`
-	EnvironmentId           string                                    `json:"environmentId"`
-	ServiceId               string                                    `json:"serviceId"`
-	ServiceName             string                                    `json:"serviceName"`
+	Id            string `json:"id"`
+	EnvironmentId string `json:"environmentId"`
+	ServiceId     string `json:"serviceId"`
+	ServiceName   string `json:"serviceName"`
+	// Whether any deployment was ever created for this service instance, including
+	// deployments that have since been removed. Distinguishes a service that was
+	// torn down (all deployments removed) from one that has never deployed —
+	// latestDeployment and activeDeployments are null/empty for both.
+	HasEverDeployed         bool                                      `json:"hasEverDeployed"`
 	BuildCommand            *string                                   `json:"buildCommand"`
 	Builder                 Builder                                   `json:"builder"`
 	DockerfilePath          *string                                   `json:"dockerfilePath"`
@@ -4099,6 +4200,9 @@ func (v *ServiceInstanceFields) GetServiceId() string { return v.ServiceId }
 
 // GetServiceName returns ServiceInstanceFields.ServiceName, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetServiceName() string { return v.ServiceName }
+
+// GetHasEverDeployed returns ServiceInstanceFields.HasEverDeployed, and is useful for accessing the field via an interface.
+func (v *ServiceInstanceFields) GetHasEverDeployed() bool { return v.HasEverDeployed }
 
 // GetBuildCommand returns ServiceInstanceFields.BuildCommand, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetBuildCommand() *string { return v.BuildCommand }
@@ -5371,6 +5475,14 @@ type __GetEnvironmentInput struct {
 // GetId returns __GetEnvironmentInput.Id, and is useful for accessing the field via an interface.
 func (v *__GetEnvironmentInput) GetId() string { return v.Id }
 
+// __GetEnvironmentPrivateNetworksInput is used internally by genqlient
+type __GetEnvironmentPrivateNetworksInput struct {
+	EnvironmentId string `json:"environmentId"`
+}
+
+// GetEnvironmentId returns __GetEnvironmentPrivateNetworksInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetEnvironmentPrivateNetworksInput) GetEnvironmentId() string { return v.EnvironmentId }
+
 // __GetProjectInput is used internally by genqlient
 type __GetProjectInput struct {
 	Id string `json:"id"`
@@ -5402,6 +5514,22 @@ func (v *__GetServiceInput) GetId() string { return v.Id }
 
 // GetEnvironmentId returns __GetServiceInput.EnvironmentId, and is useful for accessing the field via an interface.
 func (v *__GetServiceInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// __GetServicePrivateEndpointInput is used internally by genqlient
+type __GetServicePrivateEndpointInput struct {
+	EnvironmentId    string `json:"environmentId"`
+	PrivateNetworkId string `json:"privateNetworkId"`
+	ServiceId        string `json:"serviceId"`
+}
+
+// GetEnvironmentId returns __GetServicePrivateEndpointInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetPrivateNetworkId returns __GetServicePrivateEndpointInput.PrivateNetworkId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetPrivateNetworkId() string { return v.PrivateNetworkId }
+
+// GetServiceId returns __GetServicePrivateEndpointInput.ServiceId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetServiceId() string { return v.ServiceId }
 
 // __ListDomainsInput is used internally by genqlient
 type __ListDomainsInput struct {
@@ -6582,6 +6710,55 @@ func GetEnvironmentConfiguration(
 	return data_, err_
 }
 
+// The query executed by GetEnvironmentPrivateNetworks.
+const GetEnvironmentPrivateNetworks_Operation = `
+query GetEnvironmentPrivateNetworks ($environmentId: String!) {
+	privateNetworks(environmentId: $environmentId) {
+		publicId
+		name
+		dnsName
+		networkId
+	}
+}
+`
+
+// THE PRIVATE NETWORK, AND THE ADDRESSES SERVICES ACTUALLY GET ON IT.
+//
+// **THIS IS THE ONLY WAY TO LEARN A SERVICE'S PRIVATE ADDRESS**, and it is a
+// question that comes up the moment anything outside Railway needs to reach in
+// — a Tailscale subnet router advertising the range, an operator debugging why
+// one service cannot see another, an ACL that has to name a destination.
+//
+// `privateIps` is EMPTY UNTIL SOMETHING IS RUNNING. The addresses are assigned
+// to containers, not to the service definition, so a service that has never
+// deployed has an endpoint with `syncStatus: ACTIVE` and no addresses. That is
+// a real state rather than an error, and the data source reports it as an empty
+// list rather than failing.
+func GetEnvironmentPrivateNetworks(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	environmentId string,
+) (data_ *GetEnvironmentPrivateNetworksResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetEnvironmentPrivateNetworks",
+		Query:  GetEnvironmentPrivateNetworks_Operation,
+		Variables: &__GetEnvironmentPrivateNetworksInput{
+			EnvironmentId: environmentId,
+		},
+	}
+
+	data_ = &GetEnvironmentPrivateNetworksResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by GetProject.
 const GetProject_Operation = `
 query GetProject ($id: String!) {
@@ -6748,6 +6925,7 @@ fragment ServiceInstanceFields on ServiceInstance {
 	environmentId
 	serviceId
 	serviceName
+	hasEverDeployed
 	buildCommand
 	builder
 	dockerfilePath
@@ -6794,6 +6972,46 @@ func GetService(
 	}
 
 	data_ = &GetServiceResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetServicePrivateEndpoint.
+const GetServicePrivateEndpoint_Operation = `
+query GetServicePrivateEndpoint ($environmentId: String!, $privateNetworkId: String!, $serviceId: String!) {
+	privateNetworkEndpoint(environmentId: $environmentId, privateNetworkId: $privateNetworkId, serviceId: $serviceId) {
+		dnsName
+		privateIps
+		syncStatus
+	}
+}
+`
+
+func GetServicePrivateEndpoint(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	environmentId string,
+	privateNetworkId string,
+	serviceId string,
+) (data_ *GetServicePrivateEndpointResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetServicePrivateEndpoint",
+		Query:  GetServicePrivateEndpoint_Operation,
+		Variables: &__GetServicePrivateEndpointInput{
+			EnvironmentId:    environmentId,
+			PrivateNetworkId: privateNetworkId,
+			ServiceId:        serviceId,
+		},
+	}
+
+	data_ = &GetServicePrivateEndpointResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -65,6 +65,20 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   ephemeral form would be deciding that a whole class of configuration is not
   allowed to exist. The data source marks the key `Sensitive` and warns on every
   read that it lands in state.
+- **`private_dns_name` and `private_ips` on `railway_service`, as a resource
+  attribute and on the data source.** A service's address on Railway's private
+  network was unreachable through the provider, and it is the question anything
+  reaching INTO Railway has to answer — a Tailscale subnet router deciding what
+  to advertise, an ACL naming a destination, an operator working out why one
+  service cannot see another. On the resource as well as the data source,
+  because otherwise wiring a service you just declared means looking it up
+  again. Empty until the service has a running deployment, which is a real
+  state rather than an error.
+- **`has_ever_deployed` on `railway_service`.** Railway's own description says
+  it *"distinguishes a service that was torn down"* from one that never
+  deployed — `latestDeployment` is null for both. That is exactly the state a
+  missing deployment trigger produces, and it was previously indistinguishable
+  from a teardown.
 - `object_count` and `size_bytes` on `data.railway_bucket`, from Railway's
   `bucketInstanceDetails`. Whether destroying a bucket is safe was previously
   unanswerable through the provider.

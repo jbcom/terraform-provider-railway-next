@@ -67,9 +67,12 @@ resource "railway_service" "api" {
 
 ### Read-Only
 
+- `has_ever_deployed` (Boolean) Whether any deployment was ever created for this service, including ones since removed. False on a service that has never built — which is what a missing `railway_deployment_trigger` looks like.
 - `id` (String) Railway service ID.
 - `latest_deployment_id` (String)
 - `latest_deployment_status` (String)
+- `private_dns_name` (String) The service's name on the private network. Reachable as `<name>.railway.internal`.
+- `private_ips` (List of String) Addresses this service holds on the private network. Empty until it has a running deployment.
 
 <a id="nestedatt--timeouts"></a>
 ### Nested Schema for `timeouts`

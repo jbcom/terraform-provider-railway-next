@@ -99,3 +99,40 @@ mutation ApplyEnvironmentChangeSet(
     }
   }
 }
+
+# THE PRIVATE NETWORK, AND THE ADDRESSES SERVICES ACTUALLY GET ON IT.
+#
+# **THIS IS THE ONLY WAY TO LEARN A SERVICE'S PRIVATE ADDRESS**, and it is a
+# question that comes up the moment anything outside Railway needs to reach in
+# — a Tailscale subnet router advertising the range, an operator debugging why
+# one service cannot see another, an ACL that has to name a destination.
+#
+# `privateIps` is EMPTY UNTIL SOMETHING IS RUNNING. The addresses are assigned
+# to containers, not to the service definition, so a service that has never
+# deployed has an endpoint with `syncStatus: ACTIVE` and no addresses. That is
+# a real state rather than an error, and the data source reports it as an empty
+# list rather than failing.
+query GetEnvironmentPrivateNetworks($environmentId: String!) {
+  privateNetworks(environmentId: $environmentId) {
+    publicId
+    name
+    dnsName
+    networkId
+  }
+}
+
+query GetServicePrivateEndpoint(
+  $environmentId: String!
+  $privateNetworkId: String!
+  $serviceId: String!
+) {
+  privateNetworkEndpoint(
+    environmentId: $environmentId
+    privateNetworkId: $privateNetworkId
+    serviceId: $serviceId
+  ) {
+    dnsName
+    privateIps
+    syncStatus
+  }
+}

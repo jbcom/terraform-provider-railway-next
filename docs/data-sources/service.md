@@ -29,3 +29,5 @@ description: |-
 - `id` (String) The ID of this resource.
 - `latest_deployment_id` (String)
 - `latest_deployment_status` (String)
+- `private_dns_name` (String) The service's name on the private network. Reachable as `<name>.railway.internal`.
+- `private_ips` (List of String) Addresses this service holds on the private network. Empty until it has a running deployment.

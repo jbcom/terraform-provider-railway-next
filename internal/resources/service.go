@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	railway "github.com/micah5/terraform-provider-railway-next/graphql"
 	"github.com/micah5/terraform-provider-railway-next/internal/client"
+	"github.com/micah5/terraform-provider-railway-next/internal/privatenet"
 )
 
 var (
@@ -61,6 +62,9 @@ type serviceModel struct {
 	WatchPatterns          types.Set      `tfsdk:"watch_patterns"`
 	LatestDeploymentID     types.String   `tfsdk:"latest_deployment_id"`
 	LatestDeploymentStatus types.String   `tfsdk:"latest_deployment_status"`
+	HasEverDeployed        types.Bool     `tfsdk:"has_ever_deployed"`
+	PrivateDNSName         types.String   `tfsdk:"private_dns_name"`
+	PrivateIPs             types.List     `tfsdk:"private_ips"`
 	Timeouts               timeouts.Value `tfsdk:"timeouts"`
 }
 
@@ -157,6 +161,44 @@ func (r *Service) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 				Computed:    true,
 				ElementType: types.StringType,
 			},
+			// **THE SERVICE'S ADDRESS ON RAILWAY'S PRIVATE NETWORK.**
+			//
+			// On the RESOURCE as well as the data source, because otherwise
+			// wiring anything to a service you just declared means looking it
+			// up again with a data source — a second read of a thing Terraform
+			// is already managing.
+			//
+			// It is the question anything reaching INTO Railway has to answer:
+			// a Tailscale subnet router deciding what to advertise, an ACL
+			// naming a destination, an operator working out why one service
+			// cannot see another.
+			//
+			// **`private_ips` IS EMPTY UNTIL SOMETHING IS RUNNING.** The
+			// addresses belong to containers rather than to the service
+			// definition, so a service that has never deployed has an active
+			// endpoint and no addresses. That is a real state, not an error —
+			// and it means this attribute CHANGES when a deployment starts,
+			// which is why it is Computed rather than something a plan can pin.
+			// **HAS THIS SERVICE EVER RUN?** `latestDeployment` is null both
+			// for a service that never deployed and for one whose deployments
+			// were removed, so without this they are indistinguishable — and
+			// the first is a misconfiguration while the second is a teardown.
+			"has_ever_deployed": schema.BoolAttribute{
+				Computed: true,
+				MarkdownDescription: "Whether any deployment was ever created for this service, including ones " +
+					"since removed. False on a service that has never built — which is what a missing " +
+					"`railway_deployment_trigger` looks like.",
+			},
+			"private_dns_name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The service's name on the private network. Reachable as `<name>.railway.internal`.",
+			},
+			"private_ips": schema.ListAttribute{
+				Computed:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "Addresses this service holds on the private network. Empty until it has a running deployment.",
+			},
+
 			"timeouts": timeouts.AttributesAll(ctx),
 		},
 	}
@@ -587,6 +629,16 @@ func (r *Service) refresh(
 			}
 		}
 	}
+
+	// THE PRIVATE-NETWORK ADDRESS, read through the same helper the data
+	// source uses so the two cannot disagree about what one is.
+	endpoint := privatenet.Read(
+		ctx, r.client, state.EnvironmentID.ValueString(), state.ID.ValueString(), diagnostics)
+	state.PrivateDNSName = types.StringValue(endpoint.DNSName)
+	addresses, addressDiags := types.ListValueFrom(ctx, types.StringType, endpoint.IPs)
+	diagnostics.Append(addressDiags...)
+	state.PrivateIPs = addresses
+
 	return !diagnostics.HasError()
 }
 
@@ -618,6 +670,7 @@ func resetServiceOptionalComputedState(state *serviceModel) {
 }
 
 func setServiceInstanceState(ctx context.Context, state *serviceModel, remote *railway.ServiceInstanceFields, diagnostics *diag.Diagnostics) {
+	state.HasEverDeployed = types.BoolValue(remote.HasEverDeployed)
 	state.BuildCommand = valueString(remote.BuildCommand)
 	state.Builder = types.StringValue(string(remote.Builder))
 	state.DockerfilePath = valueString(remote.DockerfilePath)
