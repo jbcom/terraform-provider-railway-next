@@ -52,7 +52,7 @@ func (r *ServiceDomain) Schema(ctx context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway-generated/requested service domain or custom domain.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway service domain ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{

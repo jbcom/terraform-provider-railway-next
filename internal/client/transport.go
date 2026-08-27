@@ -24,7 +24,9 @@ type railwayDoer struct {
 }
 
 type requestEnvelope struct {
-	Query string `json:"query"`
+	Query         string         `json:"query"`
+	OperationName string         `json:"operationName"`
+	Variables     map[string]any `json:"variables"`
 }
 
 func newRailwayDoer(config Config) HTTPDoer {
@@ -49,6 +51,8 @@ func (d *railwayDoer) Do(req *http.Request) (*http.Response, error) {
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, errors.New("encode Railway GraphQL request")
 	}
+
+	logRequest(req.Context(), envelope)
 	safeRead := strings.HasPrefix(strings.TrimSpace(envelope.Query), "query ")
 	attempts := 1
 	if safeRead {

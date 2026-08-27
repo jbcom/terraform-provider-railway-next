@@ -95,9 +95,14 @@ func (v *ApplyEnvironmentChangeSetResponse) GetEnvironmentApplyChangeSet() Apply
 }
 
 type BucketCreateInput struct {
+	// [unimplemented] The environment to deploy the bucket instances into. If
+	// `null`, the bucket will not be deployed to any environment. `undefined` will
+	// deploy to all environments.
 	EnvironmentId *string `json:"environmentId"`
-	Name          *string `json:"name"`
-	ProjectId     string  `json:"projectId"`
+	// The name of the bucket
+	Name *string `json:"name"`
+	// The project to create the bucket in
+	ProjectId string `json:"projectId"`
 }
 
 // GetEnvironmentId returns BucketCreateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -117,6 +122,7 @@ type BucketFields struct {
 	GroupId   *string `json:"groupId"`
 	CreatedAt string  `json:"createdAt"`
 	UpdatedAt string  `json:"updatedAt"`
+	DeletedAt *string `json:"deletedAt"`
 }
 
 // GetId returns BucketFields.Id, and is useful for accessing the field via an interface.
@@ -136,6 +142,9 @@ func (v *BucketFields) GetCreatedAt() string { return v.CreatedAt }
 
 // GetUpdatedAt returns BucketFields.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *BucketFields) GetUpdatedAt() string { return v.UpdatedAt }
+
+// GetDeletedAt returns BucketFields.DeletedAt, and is useful for accessing the field via an interface.
+func (v *BucketFields) GetDeletedAt() *string { return v.DeletedAt }
 
 type BucketUpdateInput struct {
 	Name string `json:"name"`
@@ -272,6 +281,9 @@ func (v *CreateBucketBucketCreateBucket) GetCreatedAt() string { return v.Bucket
 // GetUpdatedAt returns CreateBucketBucketCreateBucket.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *CreateBucketBucketCreateBucket) GetUpdatedAt() string { return v.BucketFields.UpdatedAt }
 
+// GetDeletedAt returns CreateBucketBucketCreateBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *CreateBucketBucketCreateBucket) GetDeletedAt() *string { return v.BucketFields.DeletedAt }
+
 func (v *CreateBucketBucketCreateBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -309,6 +321,8 @@ type __premarshalCreateBucketBucketCreateBucket struct {
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *CreateBucketBucketCreateBucket) MarshalJSON() ([]byte, error) {
@@ -328,6 +342,7 @@ func (v *CreateBucketBucketCreateBucket) __premarshalJSON() (*__premarshalCreate
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -1199,13 +1214,19 @@ var AllDeploymentStatus = []DeploymentStatus{
 }
 
 type EnvironmentCreateInput struct {
-	ApplyChangesInBackground *bool   `json:"applyChangesInBackground"`
-	Ephemeral                *bool   `json:"ephemeral"`
-	Name                     string  `json:"name"`
-	ProjectId                string  `json:"projectId"`
-	SkipInitialDeploys       *bool   `json:"skipInitialDeploys"`
-	SourceEnvironmentId      *string `json:"sourceEnvironmentId"`
-	StageInitialChanges      *bool   `json:"stageInitialChanges"`
+	// If true, the changes will be applied in the background and the mutation will
+	// return immediately. If false, the mutation will wait for the changes to be
+	// applied before returning.
+	ApplyChangesInBackground *bool  `json:"applyChangesInBackground"`
+	Ephemeral                *bool  `json:"ephemeral"`
+	Name                     string `json:"name"`
+	ProjectId                string `json:"projectId"`
+	// When committing the changes immediately, skip any initial deployments.
+	SkipInitialDeploys *bool `json:"skipInitialDeploys"`
+	// Create the environment with all of the services, volumes, configuration, and variables from this source environment.
+	SourceEnvironmentId *string `json:"sourceEnvironmentId"`
+	// Stage the initial changes for the environment. If false (default), the changes will be committed immediately.
+	StageInitialChanges *bool `json:"stageInitialChanges"`
 }
 
 // GetApplyChangesInBackground returns EnvironmentCreateInput.ApplyChangesInBackground, and is useful for accessing the field via an interface.
@@ -1238,7 +1259,8 @@ type EnvironmentFields struct {
 	ProjectId   string  `json:"projectId"`
 	IsEphemeral bool    `json:"isEphemeral"`
 	DeletedAt   *string `json:"deletedAt"`
-	// Opaque snapshot token of the environment's IaC-relevant config. Echo it back as baseConfigEtag on environmentApplyChangeSet for optimistic concurrency.
+	// Opaque snapshot token of the environment's IaC-relevant config. Echo it back
+	// as baseConfigEtag on environmentApplyChangeSet for optimistic concurrency.
 	ConfigEtag string `json:"configEtag"`
 }
 
@@ -1266,6 +1288,90 @@ type EnvironmentRenameInput struct {
 
 // GetName returns EnvironmentRenameInput.Name, and is useful for accessing the field via an interface.
 func (v *EnvironmentRenameInput) GetName() string { return v.Name }
+
+// GetBucketInstanceDetailsBucketInstanceDetails includes the requested fields of the GraphQL type BucketInstanceDetails.
+type GetBucketInstanceDetailsBucketInstanceDetails struct {
+	ObjectCount json.Number `json:"objectCount"`
+	SizeBytes   json.Number `json:"sizeBytes"`
+}
+
+// GetObjectCount returns GetBucketInstanceDetailsBucketInstanceDetails.ObjectCount, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsBucketInstanceDetails) GetObjectCount() json.Number {
+	return v.ObjectCount
+}
+
+// GetSizeBytes returns GetBucketInstanceDetailsBucketInstanceDetails.SizeBytes, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsBucketInstanceDetails) GetSizeBytes() json.Number {
+	return v.SizeBytes
+}
+
+// GetBucketInstanceDetailsResponse is returned by GetBucketInstanceDetails on success.
+type GetBucketInstanceDetailsResponse struct {
+	// Get the S3-compatible credentials for a bucket
+	BucketInstanceDetails *GetBucketInstanceDetailsBucketInstanceDetails `json:"bucketInstanceDetails"`
+}
+
+// GetBucketInstanceDetails returns GetBucketInstanceDetailsResponse.BucketInstanceDetails, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsResponse) GetBucketInstanceDetails() *GetBucketInstanceDetailsBucketInstanceDetails {
+	return v.BucketInstanceDetails
+}
+
+// GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials includes the requested fields of the GraphQL type BucketS3CompatibleCredentials.
+type GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials struct {
+	AccessKeyId     string `json:"accessKeyId"`
+	SecretAccessKey string `json:"secretAccessKey"`
+	BucketName      string `json:"bucketName"`
+	Endpoint        string `json:"endpoint"`
+	Region          string `json:"region"`
+	UrlStyle        string `json:"urlStyle"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+// GetAccessKeyId returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.AccessKeyId, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetAccessKeyId() string {
+	return v.AccessKeyId
+}
+
+// GetSecretAccessKey returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.SecretAccessKey, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetSecretAccessKey() string {
+	return v.SecretAccessKey
+}
+
+// GetBucketName returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.BucketName, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetBucketName() string {
+	return v.BucketName
+}
+
+// GetEndpoint returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.Endpoint, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetEndpoint() string {
+	return v.Endpoint
+}
+
+// GetRegion returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.Region, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetRegion() string {
+	return v.Region
+}
+
+// GetUrlStyle returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.UrlStyle, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetUrlStyle() string {
+	return v.UrlStyle
+}
+
+// GetCreatedAt returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.CreatedAt, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetCreatedAt() string {
+	return v.CreatedAt
+}
+
+// GetBucketS3CredentialsResponse is returned by GetBucketS3Credentials on success.
+type GetBucketS3CredentialsResponse struct {
+	// Get the S3-compatible credentials for a bucket
+	BucketS3Credentials []GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials `json:"bucketS3Credentials"`
+}
+
+// GetBucketS3Credentials returns GetBucketS3CredentialsResponse.BucketS3Credentials, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsResponse) GetBucketS3Credentials() []GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials {
+	return v.BucketS3Credentials
+}
 
 // GetDeploymentStatusDeployment includes the requested fields of the GraphQL type Deployment.
 type GetDeploymentStatusDeployment struct {
@@ -2800,6 +2906,11 @@ func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBuc
 	return v.BucketFields.UpdatedAt
 }
 
+// GetDeletedAt returns ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) GetDeletedAt() *string {
+	return v.BucketFields.DeletedAt
+}
+
 func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2837,6 +2948,8 @@ type __premarshalListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesPr
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) MarshalJSON() ([]byte, error) {
@@ -2856,6 +2969,7 @@ func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBuc
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -3258,7 +3372,9 @@ type ProjectFields struct {
 	IsPublic          bool    `json:"isPublic"`
 	WorkspaceId       *string `json:"workspaceId"`
 	BaseEnvironmentId *string `json:"baseEnvironmentId"`
-	// The id of the oldest non-ephemeral environment for this project (typically production). Used by the dashboard to render project cards without fetching the full environments connection.
+	// The id of the oldest non-ephemeral environment for this project (typically
+	// production). Used by the dashboard to render project cards without fetching
+	// the full environments connection.
 	PrimaryEnvironmentId  *string                                                `json:"primaryEnvironmentId"`
 	PrDeploys             bool                                                   `json:"prDeploys"`
 	BotPrEnvironments     bool                                                   `json:"botPrEnvironments"`
@@ -3344,9 +3460,11 @@ func (v *ProjectFieldsEnvironmentsProjectEnvironmentsConnectionEdgesProjectEnvir
 }
 
 type ProjectUpdateInput struct {
-	BaseEnvironmentId     *string `json:"baseEnvironmentId"`
-	BotPrEnvironments     *bool   `json:"botPrEnvironments"`
-	Description           *string `json:"description"`
+	BaseEnvironmentId *string `json:"baseEnvironmentId"`
+	// Enable/disable pull request environments for PRs created by bots
+	BotPrEnvironments *bool   `json:"botPrEnvironments"`
+	Description       *string `json:"description"`
+	// Enable focused PR environments that only deploy services affected by changed files
 	FocusedPrEnvironments *bool   `json:"focusedPrEnvironments"`
 	IsPublic              *bool   `json:"isPublic"`
 	Name                  *string `json:"name"`
@@ -3390,9 +3508,7 @@ var AllPublicRuntime = []PublicRuntime{
 
 // Private Docker registry credentials. Only available for Pro plan deployments.
 type RegistryCredentialsInput struct {
-	// Private Docker registry credentials. Only available for Pro plan deployments.
 	Password string `json:"password"`
-	// Private Docker registry credentials. Only available for Pro plan deployments.
 	Username string `json:"username"`
 }
 
@@ -3520,9 +3636,12 @@ var AllRestartPolicyType = []RestartPolicyType{
 }
 
 type ServiceConnectInput struct {
+	// The branch to connect to. e.g. 'main'
 	Branch *string `json:"branch"`
-	Image  *string `json:"image"`
-	Repo   *string `json:"repo"`
+	// Name of the Dockerhub or GHCR image to connect this service to.
+	Image *string `json:"image"`
+	// The full name of the repo to connect to. e.g. 'railwayapp/starters'
+	Repo *string `json:"repo"`
 }
 
 // GetBranch returns ServiceConnectInput.Branch, and is useful for accessing the field via an interface.
@@ -3535,16 +3654,21 @@ func (v *ServiceConnectInput) GetImage() *string { return v.Image }
 func (v *ServiceConnectInput) GetRepo() *string { return v.Repo }
 
 type ServiceCreateInput struct {
-	Branch              *string                   `json:"branch"`
+	Branch *string `json:"branch"`
+	// Environment ID. If the specified environment is a fork, the service will only
+	// be created in it. Otherwise it will created in all environments that are not
+	// forks of other environments
 	EnvironmentId       *string                   `json:"environmentId"`
 	Icon                *string                   `json:"icon"`
 	Name                *string                   `json:"name"`
 	ProjectId           string                    `json:"projectId"`
 	RegistryCredentials *RegistryCredentialsInput `json:"registryCredentials"`
 	Source              *ServiceSourceInput       `json:"source"`
-	TemplateId          *string                   `json:"templateId"`
-	TemplateServiceId   *string                   `json:"templateServiceId"`
-	Variables           *map[string]string        `json:"variables"`
+	// Template ID. Required when templateServiceId is provided.
+	TemplateId *string `json:"templateId"`
+	// Template service ID within the template's serializedConfig. Required when templateId is provided.
+	TemplateServiceId *string            `json:"templateServiceId"`
+	Variables         *map[string]string `json:"variables"`
 }
 
 // GetBranch returns ServiceCreateInput.Branch, and is useful for accessing the field via an interface.
@@ -3835,10 +3959,12 @@ func (v *ServiceInstanceFieldsSourceServiceSource) GetImage() *string { return v
 func (v *ServiceInstanceFieldsSourceServiceSource) GetRepo() *string { return v.Repo }
 
 type ServiceInstanceLimitsUpdateInput struct {
-	EnvironmentId string   `json:"environmentId"`
-	MemoryGB      *float64 `json:"memoryGB"`
-	ServiceId     string   `json:"serviceId"`
-	VCPUs         *float64 `json:"vCPUs"`
+	EnvironmentId string `json:"environmentId"`
+	// Amount of memory in GB to allocate to the service instance
+	MemoryGB  *float64 `json:"memoryGB"`
+	ServiceId string   `json:"serviceId"`
+	// Number of vCPUs to allocate to the service instance
+	VCPUs *float64 `json:"vCPUs"`
 }
 
 // GetEnvironmentId returns ServiceInstanceLimitsUpdateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -3867,6 +3993,7 @@ type ServiceInstanceUpdateInput struct {
 	NumReplicas             *int                      `json:"numReplicas"`
 	OverlapSeconds          *int                      `json:"overlapSeconds"`
 	PreDeployCommand        []string                  `json:"preDeployCommand"`
+	PreDeployTimeoutSeconds *int                      `json:"preDeployTimeoutSeconds"`
 	RailwayConfigFile       *string                   `json:"railwayConfigFile"`
 	Region                  *string                   `json:"region"`
 	RegistryCredentials     *RegistryCredentialsInput `json:"registryCredentials"`
@@ -3919,6 +4046,11 @@ func (v *ServiceInstanceUpdateInput) GetOverlapSeconds() *int { return v.Overlap
 
 // GetPreDeployCommand returns ServiceInstanceUpdateInput.PreDeployCommand, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceUpdateInput) GetPreDeployCommand() []string { return v.PreDeployCommand }
+
+// GetPreDeployTimeoutSeconds returns ServiceInstanceUpdateInput.PreDeployTimeoutSeconds, and is useful for accessing the field via an interface.
+func (v *ServiceInstanceUpdateInput) GetPreDeployTimeoutSeconds() *int {
+	return v.PreDeployTimeoutSeconds
+}
 
 // GetRailwayConfigFile returns ServiceInstanceUpdateInput.RailwayConfigFile, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceUpdateInput) GetRailwayConfigFile() *string { return v.RailwayConfigFile }
@@ -4001,6 +4133,9 @@ func (v *UpdateBucketBucketUpdateBucket) GetCreatedAt() string { return v.Bucket
 // GetUpdatedAt returns UpdateBucketBucketUpdateBucket.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *UpdateBucketBucketUpdateBucket) GetUpdatedAt() string { return v.BucketFields.UpdatedAt }
 
+// GetDeletedAt returns UpdateBucketBucketUpdateBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *UpdateBucketBucketUpdateBucket) GetDeletedAt() *string { return v.BucketFields.DeletedAt }
+
 func (v *UpdateBucketBucketUpdateBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -4038,6 +4173,8 @@ type __premarshalUpdateBucketBucketUpdateBucket struct {
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *UpdateBucketBucketUpdateBucket) MarshalJSON() ([]byte, error) {
@@ -4057,6 +4194,7 @@ func (v *UpdateBucketBucketUpdateBucket) __premarshalJSON() (*__premarshalUpdate
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -4440,12 +4578,14 @@ type UpsertVariableResponse struct {
 func (v *UpsertVariableResponse) GetVariableUpsert() bool { return v.VariableUpsert }
 
 type VariableCollectionUpsertInput struct {
-	EnvironmentId string            `json:"environmentId"`
-	ProjectId     string            `json:"projectId"`
-	Replace       *bool             `json:"replace"`
-	ServiceId     *string           `json:"serviceId"`
-	SkipDeploys   *bool             `json:"skipDeploys"`
-	Variables     map[string]string `json:"variables"`
+	EnvironmentId string `json:"environmentId"`
+	ProjectId     string `json:"projectId"`
+	// When set to true, removes all existing variables before upserting the new collection.
+	Replace   *bool   `json:"replace"`
+	ServiceId *string `json:"serviceId"`
+	// Skip deploys for affected services
+	SkipDeploys *bool             `json:"skipDeploys"`
+	Variables   map[string]string `json:"variables"`
 }
 
 // GetEnvironmentId returns VariableCollectionUpsertInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4490,8 +4630,9 @@ type VariableUpsertInput struct {
 	Name          string  `json:"name"`
 	ProjectId     string  `json:"projectId"`
 	ServiceId     *string `json:"serviceId"`
-	SkipDeploys   *bool   `json:"skipDeploys"`
-	Value         string  `json:"value"`
+	// Skip deploys for affected services
+	SkipDeploys *bool  `json:"skipDeploys"`
+	Value       string `json:"value"`
 }
 
 // GetEnvironmentId returns VariableUpsertInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4513,11 +4654,17 @@ func (v *VariableUpsertInput) GetSkipDeploys() *bool { return v.SkipDeploys }
 func (v *VariableUpsertInput) GetValue() string { return v.Value }
 
 type VolumeCreateInput struct {
+	// The environment to deploy the volume instances into. If `null`, the volume
+	// will not be deployed to any environment. `undefined` will deploy to all environments.
 	EnvironmentId *string `json:"environmentId"`
-	MountPath     string  `json:"mountPath"`
-	ProjectId     string  `json:"projectId"`
-	Region        *string `json:"region"`
-	ServiceId     *string `json:"serviceId"`
+	// The path in the container to mount the volume to
+	MountPath string `json:"mountPath"`
+	// The project to create the volume in
+	ProjectId string `json:"projectId"`
+	// The region to create the volume instances in. If not provided, the default region will be used.
+	Region *string `json:"region"`
+	// The service to attach the volume to. If not provided, the volume will be disconnected.
+	ServiceId *string `json:"serviceId"`
 }
 
 // GetEnvironmentId returns VolumeCreateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4600,9 +4747,12 @@ func (v *VolumeInstanceFields) GetDeletedAt() *string { return v.DeletedAt }
 func (v *VolumeInstanceFields) GetState() *VolumeState { return v.State }
 
 type VolumeInstanceUpdateInput struct {
-	MountPath *string      `json:"mountPath"`
-	ServiceId *string      `json:"serviceId"`
-	State     *VolumeState `json:"state"`
+	// The mount path of the volume instance. If not provided, the mount path will not be updated.
+	MountPath *string `json:"mountPath"`
+	// The service to attach the volume to. If not provided, the volume will be disconnected.
+	ServiceId *string `json:"serviceId"`
+	// The state of the volume instance. If not provided, the state will not be updated.
+	State *VolumeState `json:"state"`
 }
 
 // GetMountPath returns VolumeInstanceUpdateInput.MountPath, and is useful for accessing the field via an interface.
@@ -4639,6 +4789,7 @@ var AllVolumeState = []VolumeState{
 }
 
 type VolumeUpdateInput struct {
+	// The name of the volume
 	Name *string `json:"name"`
 }
 
@@ -4647,10 +4798,11 @@ func (v *VolumeUpdateInput) GetName() *string { return v.Name }
 
 // __ApplyEnvironmentChangeSetInput is used internally by genqlient
 type __ApplyEnvironmentChangeSetInput struct {
-	EnvironmentId  string          `json:"environmentId"`
-	Input          json.RawMessage `json:"input"`
-	CommitMessage  *string         `json:"commitMessage"`
-	BaseConfigEtag *string         `json:"baseConfigEtag"`
+	EnvironmentId     string          `json:"environmentId"`
+	Input             json.RawMessage `json:"input"`
+	CommitMessage     *string         `json:"commitMessage"`
+	BaseConfigEtag    *string         `json:"baseConfigEtag"`
+	WaitForCompletion *bool           `json:"waitForCompletion"`
 }
 
 // GetEnvironmentId returns __ApplyEnvironmentChangeSetInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4664,6 +4816,9 @@ func (v *__ApplyEnvironmentChangeSetInput) GetCommitMessage() *string { return v
 
 // GetBaseConfigEtag returns __ApplyEnvironmentChangeSetInput.BaseConfigEtag, and is useful for accessing the field via an interface.
 func (v *__ApplyEnvironmentChangeSetInput) GetBaseConfigEtag() *string { return v.BaseConfigEtag }
+
+// GetWaitForCompletion returns __ApplyEnvironmentChangeSetInput.WaitForCompletion, and is useful for accessing the field via an interface.
+func (v *__ApplyEnvironmentChangeSetInput) GetWaitForCompletion() *bool { return v.WaitForCompletion }
 
 // __ConnectServiceInput is used internally by genqlient
 type __ConnectServiceInput struct {
@@ -4792,6 +4947,34 @@ type __DeleteVolumeInput struct {
 
 // GetId returns __DeleteVolumeInput.Id, and is useful for accessing the field via an interface.
 func (v *__DeleteVolumeInput) GetId() string { return v.Id }
+
+// __GetBucketInstanceDetailsInput is used internally by genqlient
+type __GetBucketInstanceDetailsInput struct {
+	BucketId      string `json:"bucketId"`
+	EnvironmentId string `json:"environmentId"`
+}
+
+// GetBucketId returns __GetBucketInstanceDetailsInput.BucketId, and is useful for accessing the field via an interface.
+func (v *__GetBucketInstanceDetailsInput) GetBucketId() string { return v.BucketId }
+
+// GetEnvironmentId returns __GetBucketInstanceDetailsInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetBucketInstanceDetailsInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// __GetBucketS3CredentialsInput is used internally by genqlient
+type __GetBucketS3CredentialsInput struct {
+	BucketId      string `json:"bucketId"`
+	EnvironmentId string `json:"environmentId"`
+	ProjectId     string `json:"projectId"`
+}
+
+// GetBucketId returns __GetBucketS3CredentialsInput.BucketId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetBucketId() string { return v.BucketId }
+
+// GetEnvironmentId returns __GetBucketS3CredentialsInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetProjectId returns __GetBucketS3CredentialsInput.ProjectId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetProjectId() string { return v.ProjectId }
 
 // __GetDeploymentStatusInput is used internally by genqlient
 type __GetDeploymentStatusInput struct {
@@ -5069,8 +5252,8 @@ func (v *__UpsertVariableInput) GetInput() VariableUpsertInput { return v.Input 
 
 // The mutation executed by ApplyEnvironmentChangeSet.
 const ApplyEnvironmentChangeSet_Operation = `
-mutation ApplyEnvironmentChangeSet ($environmentId: String!, $input: JSON!, $commitMessage: String, $baseConfigEtag: String) {
-	environmentApplyChangeSet(environmentId: $environmentId, input: $input, commitMessage: $commitMessage, baseConfigEtag: $baseConfigEtag) {
+mutation ApplyEnvironmentChangeSet ($environmentId: String!, $input: JSON!, $commitMessage: String, $baseConfigEtag: String, $waitForCompletion: Boolean) {
+	environmentApplyChangeSet(environmentId: $environmentId, input: $input, commitMessage: $commitMessage, baseConfigEtag: $baseConfigEtag, waitForCompletion: $waitForCompletion) {
 		id
 		status
 		deploymentId
@@ -5094,15 +5277,17 @@ func ApplyEnvironmentChangeSet(
 	input json.RawMessage,
 	commitMessage *string,
 	baseConfigEtag *string,
+	waitForCompletion *bool,
 ) (data_ *ApplyEnvironmentChangeSetResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ApplyEnvironmentChangeSet",
 		Query:  ApplyEnvironmentChangeSet_Operation,
 		Variables: &__ApplyEnvironmentChangeSetInput{
-			EnvironmentId:  environmentId,
-			Input:          input,
-			CommitMessage:  commitMessage,
-			BaseConfigEtag: baseConfigEtag,
+			EnvironmentId:     environmentId,
+			Input:             input,
+			CommitMessage:     commitMessage,
+			BaseConfigEtag:    baseConfigEtag,
+			WaitForCompletion: waitForCompletion,
 		},
 	}
 
@@ -5175,6 +5360,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 
@@ -5699,6 +5885,108 @@ func DeleteVolume(
 	return data_, err_
 }
 
+// The query executed by GetBucketInstanceDetails.
+const GetBucketInstanceDetails_Operation = `
+query GetBucketInstanceDetails ($bucketId: String!, $environmentId: String!) {
+	bucketInstanceDetails(bucketId: $bucketId, environmentId: $environmentId) {
+		objectCount
+		sizeBytes
+	}
+}
+`
+
+// HOW MUCH IS ACTUALLY IN THE BUCKET.
+//
+// No secrets, so this belongs in the ordinary `railway_bucket` data source.
+//
+// `objectCount` answers the question that governs whether destroying a bucket is
+// safe, and it was previously unanswerable through the provider — the decision
+// to let uat's media bucket be replaced had to be made by reasoning about how
+// recently it was created rather than by reading a count.
+func GetBucketInstanceDetails(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	bucketId string,
+	environmentId string,
+) (data_ *GetBucketInstanceDetailsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetBucketInstanceDetails",
+		Query:  GetBucketInstanceDetails_Operation,
+		Variables: &__GetBucketInstanceDetailsInput{
+			BucketId:      bucketId,
+			EnvironmentId: environmentId,
+		},
+	}
+
+	data_ = &GetBucketInstanceDetailsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetBucketS3Credentials.
+const GetBucketS3Credentials_Operation = `
+query GetBucketS3Credentials ($bucketId: String!, $environmentId: String!, $projectId: String!) {
+	bucketS3Credentials(bucketId: $bucketId, environmentId: $environmentId, projectId: $projectId) {
+		accessKeyId
+		secretAccessKey
+		bucketName
+		endpoint
+		region
+		urlStyle
+		createdAt
+	}
+}
+`
+
+// THE BUCKET'S REAL S3 CREDENTIALS.
+//
+// **These are SECRETS, and they are the reason `railway_bucket_credentials` is
+// an EPHEMERAL RESOURCE rather than a data source.** A data source writes its
+// result to state; this must never be written anywhere. Terraform 1.10+ keeps an
+// ephemeral result in memory for the duration of the operation and discards it.
+//
+// The `railway_bucket` resource deliberately exposes only reference
+// EXPRESSIONS — `${{uat-media.SECRET_ACCESS_KEY}}` — which Railway resolves at
+// deploy time. That stays the right default for wiring one Railway service to
+// one Railway bucket. This query is for the case a reference cannot serve: a
+// consumer OUTSIDE Railway, such as a local `terraform` run that must upload a
+// seed object, or a non-Railway system that reads the same bucket.
+func GetBucketS3Credentials(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	bucketId string,
+	environmentId string,
+	projectId string,
+) (data_ *GetBucketS3CredentialsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetBucketS3Credentials",
+		Query:  GetBucketS3Credentials_Operation,
+		Variables: &__GetBucketS3CredentialsInput{
+			BucketId:      bucketId,
+			EnvironmentId: environmentId,
+			ProjectId:     projectId,
+		},
+	}
+
+	data_ = &GetBucketS3CredentialsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by GetDeploymentStatus.
 const GetDeploymentStatus_Operation = `
 query GetDeploymentStatus ($id: String!) {
@@ -6180,6 +6468,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 
@@ -6446,6 +6735,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 

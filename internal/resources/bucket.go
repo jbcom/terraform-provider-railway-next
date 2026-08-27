@@ -64,7 +64,7 @@ func (r *Bucket) Schema(ctx context.Context, _ resource.SchemaRequest, resp *res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway storage bucket registered in an environment. Region changes replace the bucket. Railway may retain a deleted bucket internally for a delayed permanent-deletion period.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway bucket ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -146,10 +146,10 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		plan.ProjectID.ValueString(),
 		plan.EnvironmentID.ValueString(),
 		plan.Name.ValueString(),
-		time.Second,
+		consistencyPollInterval,
 	)
 	if reconcileErr != nil || bucket == nil {
-		detail := "Railway did not expose exactly one registered bucket with the requested name within 30 seconds."
+		detail := "Railway did not expose exactly one registered bucket with the requested name before the create timeout expired."
 		if err != nil {
 			detail += " The apply request also returned: " + client.DecodeAPIError(err).Error()
 		}
@@ -160,10 +160,9 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		// THE CHANGE SET HAS ALREADY BEEN APPLIED, so the bucket is probably
 		// registering right now — this path is a TIMEOUT, not a rejection.
 		//
-		// It is also the likelier of the two failures here, because the wait
-		// above is a fixed 30 seconds regardless of the configured create
-		// timeout, and Railway registers buckets asynchronously. Returning
-		// without state leaves a bucket nothing has a record of.
+		// Railway registers buckets asynchronously, so this is the likelier of
+		// the two failures here. Returning without state leaves a bucket
+		// nothing has a record of.
 		//
 		// Recovery from that is worse than for any other resource: the
 		// duplicate-name guard at the top of this function finds the orphan and
@@ -305,7 +304,45 @@ func (r *Bucket) Delete(ctx context.Context, req resource.DeleteRequest, resp *r
 		registered, readErr := r.isRegistered(ctx, state.EnvironmentID.ValueString(), state.ID.ValueString())
 		if readErr != nil || registered {
 			resp.Diagnostics.AddError("Unable to delete Railway bucket", client.DecodeAPIError(err).Error())
+			return
 		}
+		// The mutation errored but the bucket is gone, so the delete stands.
+		return
+	}
+
+	// **A SUCCESSFUL CHANGE SET IS NOT A COMPLETED DELETE, AND THIS IS WHERE
+	// THAT COST A LIVE BUCKET.**
+	//
+	// `environmentStagedChangesApply` returns when Railway has ACCEPTED the
+	// change set. The bucket is deregistered afterwards, asynchronously. The
+	// old code returned here on success, so Terraform recorded the resource as
+	// destroyed and dropped it from state — and Railway then left it
+	// registered, with `deletedAt` null. The next apply planned to create it,
+	// hit the name that was still taken, and the operator was left with a live
+	// bucket no configuration owned.
+	//
+	// Returning an error here would be no better: the delete was requested and
+	// may yet land. So this WAITS for the deregistration it just asked for, and
+	// only reports failure if the bucket is still registered when the
+	// practitioner's own `timeouts { delete = ... }` runs out.
+	waitErr := awaitConsistency(ctx, consistencyPollInterval, func(ctx context.Context) error {
+		registered, readErr := r.isRegistered(ctx, state.EnvironmentID.ValueString(), state.ID.ValueString())
+		if readErr != nil {
+			return readErr
+		}
+		if registered {
+			return errNotReady
+		}
+		return nil
+	})
+	if waitErr != nil {
+		resp.Diagnostics.AddError(
+			"Unable to confirm Railway bucket deletion",
+			"Railway accepted the change set deleting bucket "+state.Name.ValueString()+
+				", but the bucket was still registered to the environment when the delete timeout expired. "+
+				"Railway retains a deleted bucket through a delayed permanent-deletion window; if the name is "+
+				"still taken on the next apply, the deletion has not finished. Underlying error: "+waitErr.Error(),
+		)
 	}
 }
 
@@ -328,6 +365,17 @@ func (r *Bucket) findBucketByName(ctx context.Context, projectID, name string) (
 	var found *railway.BucketFields
 	for _, edge := range result.Project.Buckets.Edges {
 		if edge.Node.Name != name {
+			continue
+		}
+		// **A DELETED BUCKET IS STILL LISTED, AND IT IS NOT A BUCKET.**
+		//
+		// Railway keeps a deleted bucket in this listing through its delayed
+		// permanent-deletion window. Counting it made `Create`'s
+		// already-exists guard fire on the provider's own tombstone, so a
+		// REPLACE — destroy then create under the same name, which is what a
+		// region change plans — refused the create Terraform had just planned
+		// and left the resource out of state.
+		if edge.Node.DeletedAt != nil {
 			continue
 		}
 		if found != nil {
@@ -367,35 +415,35 @@ func (r *Bucket) waitForBucketRegistration(
 	name string,
 	interval time.Duration,
 ) (*railway.BucketFields, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		bucket, err := r.findBucketByName(waitCtx, projectID, name)
-		if err == nil && bucket != nil {
-			registered, registrationErr := r.isRegistered(waitCtx, environmentID, bucket.Id)
-			if registrationErr == nil && registered {
-				return bucket, nil
-			}
-			if registrationErr != nil {
-				lastErr = registrationErr
-			}
-		}
+	// **THE TIMEOUT COMES FROM THE CALLER'S CONTEXT, NOT FROM HERE.**
+	//
+	// This used to wrap `ctx` in its own 30-second deadline, so a practitioner
+	// writing `timeouts { create = "5m" }` still got thirty seconds and an
+	// error that told them Railway was too slow rather than that the provider
+	// had ignored them.
+	var found *railway.BucketFields
+	err := awaitConsistency(ctx, interval, func(ctx context.Context) error {
+		bucket, err := r.findBucketByName(ctx, projectID, name)
 		if err != nil {
-			lastErr = err
+			return err
 		}
-		select {
-		case <-waitCtx.Done():
-			if lastErr != nil {
-				return nil, lastErr
-			}
-			return nil, nil
-		case <-ticker.C:
+		if bucket == nil {
+			return errNotReady
 		}
+		registered, err := r.isRegistered(ctx, environmentID, bucket.Id)
+		if err != nil {
+			return err
+		}
+		if !registered {
+			return errNotReady
+		}
+		found = bucket
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
+	return found, nil
 }
 
 func (r *Bucket) setReferences(ctx context.Context, state *bucketModel, diagnostics *diag.Diagnostics) {

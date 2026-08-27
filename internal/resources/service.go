@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -93,7 +92,7 @@ func (r *Service) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway service and its configuration in one environment. Creation is distinct from deployment success; latest deployment status is exposed separately.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway service ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -342,16 +341,11 @@ func (r *Service) Update(ctx context.Context, req resource.UpdateRequest, resp *
 			return
 		}
 
-		// THE BRANCH IS A SERVICE PROPERTY, not an instance one, so it moves
-		// separately — `ServiceInstanceUpdateInput` has no branch field.
-		if !plan.Branch.IsNull() && !plan.Branch.IsUnknown() {
-			if _, err := railway.UpdateService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceUpdateInput{
-				Name: stringPointer(plan.Name),
-			}); err != nil {
-				resp.Diagnostics.AddError("Unable to update Railway service", client.DecodeAPIError(err).Error())
-				return
-			}
-		}
+		// NO SEPARATE NAME UPDATE HERE. An earlier version re-sent the name
+		// alongside the source change and got `Not Authorized` — the rename
+		// block above already handles a changed name, and repeating it inside
+		// the source branch asked for a permission the source change does not
+		// need.
 	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
 		return
@@ -473,43 +467,26 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 // Without this wait the connect fails with `ServiceInstance not found` — an
 // error that names the wrong thing and reads like a bug in the caller.
 //
-// Thirty seconds and a one-second tick, matching `waitForVolumeInstance` and
-// `waitForBucketRegistration`, so all three eventual-consistency waits behave
-// the same way.
+// The ceiling is the CALLER'S timeout, not a number chosen here — see
+// `awaitConsistency`.
 func (r *Service) waitForServiceInstance(ctx context.Context, plan *serviceModel) error {
-	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
+	return awaitConsistency(ctx, consistencyPollInterval, func(ctx context.Context) error {
 		result, err := railway.GetService(
-			waitCtx,
+			ctx,
 			r.client.GraphQL(),
 			plan.ID.ValueString(),
 			plan.EnvironmentID.ValueString(),
 		)
 		if err != nil {
-			lastErr = err
-		} else {
-			for _, edge := range result.Environment.ServiceInstances.Edges {
-				if edge.Node.ServiceId == plan.ID.ValueString() {
-					return nil
-				}
+			return err
+		}
+		for _, edge := range result.Environment.ServiceInstances.Edges {
+			if edge.Node.ServiceId == plan.ID.ValueString() {
+				return nil
 			}
 		}
-
-		select {
-		case <-waitCtx.Done():
-			if lastErr != nil {
-				return lastErr
-			}
-			return waitCtx.Err()
-		case <-ticker.C:
-		}
-	}
+		return errNotReady
+	})
 }
 
 func (r *Service) refresh(

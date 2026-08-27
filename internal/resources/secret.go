@@ -48,7 +48,7 @@ func (r *Secret) Schema(ctx context.Context, _ resource.SchemaRequest, resp *res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway secret variable using Terraform 1.11+ write-only state semantics. The provider never returns the value from Read. Increment value_wo_version to rotate the secret.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway secret ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{

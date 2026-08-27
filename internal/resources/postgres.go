@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -66,7 +67,7 @@ func (r *Postgres) Schema(ctx context.Context, _ resource.SchemaRequest, resp *r
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A composite Railway PostgreSQL service using the official `ghcr.io/railwayapp-templates/postgres-ssl` image and a persistent data volume. Destroying this resource permanently deletes database data.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway Postgres service ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -436,27 +437,27 @@ func (r *Postgres) waitForPostgres(
 	name string,
 	interval time.Duration,
 ) (*postgresRemoteIDs, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		ids, err := r.findPostgres(waitCtx, projectID, environmentID, name)
-		if err == nil && ids != nil {
-			return ids, nil
-		}
+	// The ceiling is the CALLER'S timeout — see `awaitConsistency`. This one
+	// was a minute rather than thirty seconds, for no reason recorded anywhere;
+	// a Postgres service that takes longer than its configured create timeout
+	// to appear is a timeout, not a different kind of wait.
+	var found *postgresRemoteIDs
+	err := awaitConsistency(ctx, interval, func(ctx context.Context) error {
+		ids, err := r.findPostgres(ctx, projectID, environmentID, name)
 		if err != nil {
-			lastErr = err
+			return err
 		}
-		select {
-		case <-waitCtx.Done():
-			if lastErr != nil {
-				return nil, lastErr
-			}
+		if ids == nil {
+			return errNotReady
+		}
+		found = ids
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return nil, nil
-		case <-ticker.C:
 		}
+		return nil, err
 	}
+	return found, nil
 }

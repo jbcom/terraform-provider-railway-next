@@ -66,12 +66,24 @@ mutation ApplyEnvironmentChangeSet(
   $input: JSON!
   $commitMessage: String
   $baseConfigEtag: String
+  $waitForCompletion: Boolean
 ) {
   environmentApplyChangeSet(
     environmentId: $environmentId
     input: $input
     commitMessage: $commitMessage
     baseConfigEtag: $baseConfigEtag
+    # `waitForCompletion` IS WHY EVERY CHANGE-SET RESOURCE NEEDED ITS OWN WAIT.
+    #
+    # Without it Railway returns once the change set is QUEUED, not once it has
+    # been applied. So a bucket delete reported success and left the bucket
+    # registered with `deletedAt` null — Terraform recorded the resource as
+    # destroyed while it was still very much alive, and the next apply hit
+    # `Railway bucket name already exists` against a bucket nothing owned.
+    #
+    # The bespoke polling loops in `bucket`, `volume`, `service` and `postgres`
+    # were all compensating for this one missing argument.
+    waitForCompletion: $waitForCompletion
   ) {
     id
     status

@@ -30,8 +30,24 @@ func TestProviderSchema(t *testing.T) {
 	if got, want := len(response.ResourceSchemas), 9; got != want {
 		t.Errorf("resource schema count = %d, want %d", got, want)
 	}
-	if got, want := len(response.DataSourceSchemas), 5; got != want {
+	if got, want := len(response.DataSourceSchemas), 6; got != want {
 		t.Errorf("data source schema count = %d, want %d", got, want)
+	}
+
+	// **BOTH FORMS OF THE BUCKET CREDENTIALS MUST BE REGISTERED.**
+	//
+	// The ephemeral one is the default and the data source is the escape hatch
+	// for arguments Terraform must persist — losing either leaves a
+	// practitioner with no way through, which is the situation offering only
+	// one of them creates.
+	if _, ok := response.DataSourceSchemas["railway_bucket_credentials"]; !ok {
+		t.Error("data.railway_bucket_credentials is not registered")
+	}
+	if got, want := len(response.EphemeralResourceSchemas), 1; got != want {
+		t.Errorf("ephemeral resource schema count = %d, want %d", got, want)
+	}
+	if _, ok := response.EphemeralResourceSchemas["railway_bucket_credentials"]; !ok {
+		t.Error("ephemeral.railway_bucket_credentials is not registered")
 	}
 	for _, name := range []string{
 		"railway_project",
