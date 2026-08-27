@@ -156,6 +156,38 @@ func (r *Bucket) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		if reconcileErr != nil {
 			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
 		}
+
+		// THE CHANGE SET HAS ALREADY BEEN APPLIED, so the bucket is probably
+		// registering right now — this path is a TIMEOUT, not a rejection.
+		//
+		// It is also the likelier of the two failures here, because the wait
+		// above is a fixed 30 seconds regardless of the configured create
+		// timeout, and Railway registers buckets asynchronously. Returning
+		// without state leaves a bucket nothing has a record of.
+		//
+		// Recovery from that is worse than for any other resource: the
+		// duplicate-name guard at the top of this function finds the orphan and
+		// hard-fails, and Railway holds a deleted bucket's name through its
+		// delayed permanent-deletion window — so deleting it by hand does not
+		// unblock the next apply either.
+		//
+		// So look once more before giving up. If the bucket did finish
+		// registering, record it and let the next apply reconcile the rest;
+		// only report an unrecoverable failure when there is genuinely nothing
+		// to adopt.
+		if late, lateErr := r.findBucketByName(ctx, plan.ProjectID.ValueString(), plan.Name.ValueString()); lateErr == nil && late != nil {
+			plan.ID = types.StringValue(late.Id)
+			plan.Name = types.StringValue(late.Name)
+			r.setReferences(ctx, &plan, &resp.Diagnostics)
+			resp.Diagnostics.AddWarning(
+				"Railway bucket registered after the confirmation window",
+				detail+" The bucket was found on a final check and has been saved to state; "+
+					"apply again to finish configuring it.",
+			)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+			return
+		}
+
 		resp.Diagnostics.AddError("Unable to confirm Railway bucket creation", detail)
 		return
 	}
