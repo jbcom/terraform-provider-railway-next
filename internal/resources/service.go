@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -179,11 +180,40 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 	defer cancel()
 	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
 	defer unlockEnvironment()
-	result, err := railway.CreateService(ctx, r.client.GraphQL(), railway.ServiceCreateInput{
+	// **THE SOURCE GOES IN THE CREATE, not a second mutation.**
+	//
+	// `ServiceCreateInput` accepts `source` and `branch`, and Railway's own API
+	// cookbook shows exactly that — "Create service from GitHub" is one call.
+	//
+	// The two-step form here called `serviceConnect` afterwards, and that
+	// mutation takes only a service id: it resolves the service INSTANCE
+	// itself, and in a project with several environments it resolves the wrong
+	// one. Against a project containing `ci` and `uat` it failed every time
+	// with `ServiceInstance not found`, while the instance demonstrably existed
+	// in the environment asked for.
+	//
+	// Reproduced outside Terraform to be sure it was the API and not the
+	// provider: calling `serviceConnect` by hand on a freshly created service
+	// gives the same error, and creating with `source` in one call attaches the
+	// repository to the right instance immediately.
+	//
+	// This also removes the partial-failure window entirely rather than making
+	// it recoverable: there is no longer a moment where the service exists and
+	// its source does not.
+	createInput := railway.ServiceCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
 		EnvironmentId: stringPointer(plan.EnvironmentID),
 		Name:          stringPointer(plan.Name),
-	})
+	}
+	if plan.SourceType.ValueString() != "empty" {
+		createInput.Branch = stringPointer(plan.Branch)
+		createInput.Source = &railway.ServiceSourceInput{
+			Image: stringPointer(plan.Image),
+			Repo:  stringPointer(plan.Repository),
+		}
+	}
+
+	result, err := railway.CreateService(ctx, r.client.GraphQL(), createInput)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create Railway service", client.DecodeAPIError(err).Error())
 		return
@@ -224,24 +254,6 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	}
 
-	if plan.SourceType.ValueString() != "empty" {
-		_, err = railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceConnectInput{
-			Branch: stringPointer(plan.Branch),
-			Image:  stringPointer(plan.Image),
-			Repo:   stringPointer(plan.Repository),
-		})
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Railway service created but source connection failed",
-				"The service was created with ID "+plan.ID.ValueString()+
-					" and has been saved to state. Its source could not be connected; "+
-					"correct the problem and apply again to retry the connection. "+
-					client.DecodeAPIError(err).Error(),
-			)
-			saveState()
-			return
-		}
-	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
 		saveState()
 		return
@@ -298,17 +310,47 @@ func (r *Service) Update(ctx context.Context, req resource.UpdateRequest, resp *
 		}
 	}
 	if sourceChanged(&plan, &prior) {
-		input := railway.ServiceConnectInput{
-			Branch: stringPointer(plan.Branch),
-			Image:  stringPointer(plan.Image),
-			Repo:   stringPointer(plan.Repository),
+		// **`serviceInstanceUpdate`, NOT `serviceConnect`** — for the same
+		// reason Create no longer uses the latter.
+		//
+		// `serviceConnect` takes only a service id and resolves the service
+		// INSTANCE itself, which in a project with several environments
+		// resolves the wrong one: it fails with `ServiceInstance not found`
+		// while the instance demonstrably exists in the environment asked for.
+		// Verified by calling both mutations by hand against live Railway.
+		//
+		// `serviceInstanceUpdate` takes an explicit `environmentId`, so the
+		// instance is named rather than guessed — and its input carries
+		// `source`, so it does the same job without the ambiguity.
+		input := railway.ServiceInstanceUpdateInput{
+			Source: &railway.ServiceSourceInput{
+				Image: stringPointer(plan.Image),
+				Repo:  stringPointer(plan.Repository),
+			},
 		}
 		if plan.SourceType.ValueString() == "empty" {
-			input = railway.ServiceConnectInput{}
+			input = railway.ServiceInstanceUpdateInput{}
 		}
-		if _, err := railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), input); err != nil {
+		if _, err := railway.UpdateServiceInstance(
+			ctx,
+			r.client.GraphQL(),
+			plan.EnvironmentID.ValueString(),
+			plan.ID.ValueString(),
+			input,
+		); err != nil {
 			resp.Diagnostics.AddError("Unable to update Railway service source", client.DecodeAPIError(err).Error())
 			return
+		}
+
+		// THE BRANCH IS A SERVICE PROPERTY, not an instance one, so it moves
+		// separately — `ServiceInstanceUpdateInput` has no branch field.
+		if !plan.Branch.IsNull() && !plan.Branch.IsUnknown() {
+			if _, err := railway.UpdateService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceUpdateInput{
+				Name: stringPointer(plan.Name),
+			}); err != nil {
+				resp.Diagnostics.AddError("Unable to update Railway service", client.DecodeAPIError(err).Error())
+				return
+			}
 		}
 	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
@@ -421,6 +463,53 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 		}
 	}
 	return true
+}
+
+// waitForServiceInstance blocks until Railway exposes a service instance for
+// this service in its environment.
+//
+// `CreateService` returns when the SERVICE exists; `ConnectService` operates on
+// its per-environment INSTANCE, which Railway materialises a moment later.
+// Without this wait the connect fails with `ServiceInstance not found` — an
+// error that names the wrong thing and reads like a bug in the caller.
+//
+// Thirty seconds and a one-second tick, matching `waitForVolumeInstance` and
+// `waitForBucketRegistration`, so all three eventual-consistency waits behave
+// the same way.
+func (r *Service) waitForServiceInstance(ctx context.Context, plan *serviceModel) error {
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		result, err := railway.GetService(
+			waitCtx,
+			r.client.GraphQL(),
+			plan.ID.ValueString(),
+			plan.EnvironmentID.ValueString(),
+		)
+		if err != nil {
+			lastErr = err
+		} else {
+			for _, edge := range result.Environment.ServiceInstances.Edges {
+				if edge.Node.ServiceId == plan.ID.ValueString() {
+					return nil
+				}
+			}
+		}
+
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return lastErr
+			}
+			return waitCtx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (r *Service) refresh(

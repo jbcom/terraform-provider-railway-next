@@ -21,11 +21,20 @@ import (
 // this fork exists to fix, through the real protocol rather than by inspecting
 // the source.
 //
-// **The bug.** `Create` calls `CreateService`, the service is made, then
-// `ConnectService` fails — and the old code returned without `resp.State.Set`.
-// Terraform discarded the plan and recorded nothing. The service existed in
-// Railway and not in state, so the next apply failed with `a service named
-// "api" already exists`, and the only escape was deleting it by hand.
+// **The bug.** `Create` makes the service, a later step fails, and the old code
+// returned without `resp.State.Set`. Terraform discarded the plan and recorded
+// nothing. The service existed in Railway and not in state, so the next apply
+// failed with `a service named "api" already exists`, and the only escape was
+// deleting it by hand.
+//
+// **The step that fails here has changed, and that is the better fix.** The
+// original failure was `serviceConnect` — a second mutation that takes only a
+// service id and resolves the instance itself, wrongly, in a multi-environment
+// project. The source now attaches during `serviceCreate`, as Railway's own API
+// cookbook shows, so that window is gone entirely rather than made recoverable.
+//
+// What can still fail after the service exists is configuring its instance, so
+// that is what this drives.
 //
 // The framework catches the version of this where the provider returns NO
 // error: `fwserver` raises "Missing Resource State After Create", whose own
@@ -69,12 +78,12 @@ resource "railway_service" "api" {
 		},
 		Steps: []resource.TestStep{
 			{
-				// The service is created; connecting its source fails.
+				// The service is created; configuring its instance fails.
 				Config:      config,
-				ExpectError: regexp.MustCompile("source connection failed"),
+				ExpectError: regexp.MustCompile("instance limits rejected|could not be applied|Unable to"),
 			},
 			{
-				// THE RECOVERY. With the connect call now succeeding, this
+				// THE RECOVERY. With the instance update now succeeding, this
 				// apply must converge — which requires step one to have left
 				// the service in state. If it did not, the provider would call
 				// CreateService again and the fixture would reject the
@@ -91,8 +100,8 @@ resource "railway_service" "api" {
 }
 
 // partialCreateFixture is a Railway that creates a service successfully and then
-// fails to connect its source — and, like Railway, refuses to create a second
-// service with a name it already has.
+// fails to configure it — and, like Railway, refuses to create a second service
+// with a name it already has.
 type partialCreateFixture struct {
 	mu          sync.Mutex
 	failConnect bool
@@ -124,6 +133,8 @@ func (f *partialCreateFixture) serveHTTP(w http.ResponseWriter, r *http.Request)
 
 	switch request.OperationName {
 	case "CreateService":
+		// The source arrives with the create now, so a successful create means
+		// a connected service.
 		// **THE DUPLICATE-NAME REFUSAL IS THE ASSERTION.** Railway rejects a
 		// second service with the same name, and reproducing that here is what
 		// makes step two a real test: without the fix, the retry reaches this
@@ -133,17 +144,21 @@ func (f *partialCreateFixture) serveHTTP(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		f.exists = true
+		f.connected = true
 		writeServiceMutation(w, "serviceCreate")
 
-	case "ConnectService":
-		if f.failConnect {
-			_, _ = io.WriteString(w, `{"errors":[{"message":"repository not accessible","extensions":{"code":"INTERNAL_SERVER_ERROR"}}]}`)
-			return
-		}
-		f.connected = true
-		writeServiceMutation(w, "serviceConnect")
+	case "CreateService2":
+		// unreachable; kept so the switch shape matches the real fixture
 
 	case "UpdateServiceInstance":
+		// **THE REMAINING PARTIAL-FAILURE WINDOW.** The source now attaches
+		// during `serviceCreate`, so the old connect failure cannot happen —
+		// which is the better fix. What can still fail after the service
+		// exists is configuring its instance, and that is what this exercises.
+		if f.failConnect {
+			_, _ = io.WriteString(w, `{"errors":[{"message":"instance limits rejected","extensions":{"code":"INTERNAL_SERVER_ERROR"}}]}`)
+			return
+		}
 		_, _ = io.WriteString(w, `{"data":{"serviceInstanceUpdate":true}}`)
 
 	case "GetService":
