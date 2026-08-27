@@ -47,6 +47,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- **`railway_deployment_trigger`, without which a GitHub-sourced service never
+  deploys.** `railway_service`'s `repository` and `branch` say what a service is
+  made of; they do not subscribe it to anything. A four-service environment
+  applied cleanly, showed the right source on every service, and had zero
+  deployments — the only symptom was that nothing was reachable, with no error
+  anywhere. It is a separate resource because a service may be built from an
+  image (no trigger possible), from a repository with continuous deployment (one
+  trigger), or from a repository deployed only by CI (a source, deliberately no
+  trigger); folding it into the service would make the third case
+  unexpressible.
 - `ephemeral.railway_bucket_credentials` and
   `data.railway_bucket_credentials` — the same S3 credential lookup in two
   forms. The ephemeral resource is the default and never persists. The data

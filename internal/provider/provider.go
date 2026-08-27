@@ -122,6 +122,7 @@ func (p *RailwayProvider) Resources(context.Context) []func() resource.Resource 
 		resources.NewProject,
 		resources.NewEnvironment,
 		resources.NewService,
+		resources.NewDeploymentTrigger,
 		resources.NewVolume,
 		resources.NewVariableCollection,
 		resources.NewSecret,

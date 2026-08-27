@@ -27,7 +27,7 @@ func TestProviderSchema(t *testing.T) {
 			t.Errorf("schema error: %s: %s", diagnostic.Summary, diagnostic.Detail)
 		}
 	}
-	if got, want := len(response.ResourceSchemas), 9; got != want {
+	if got, want := len(response.ResourceSchemas), 10; got != want {
 		t.Errorf("resource schema count = %d, want %d", got, want)
 	}
 	if got, want := len(response.DataSourceSchemas), 6; got != want {
@@ -59,6 +59,7 @@ func TestProviderSchema(t *testing.T) {
 		"railway_service_domain",
 		"railway_bucket",
 		"railway_postgres",
+		"railway_deployment_trigger",
 	} {
 		if _, ok := response.ResourceSchemas[name]; !ok {
 			t.Errorf("missing resource schema %q", name)
