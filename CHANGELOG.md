@@ -10,9 +10,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   `check_suites`.** `Read` restored Railway's `provider` value, but the optional
   `provider_name` attribute had no schema default, so the next plan changed
   `"github"` back to unknown and its `RequiresReplace` modifier forced a
-  destroy/create. The schema now applies the documented `github` default, and
-  `Read` safely adopts a Railway-replaced trigger id when exactly one trigger
-  on the service matches the same environment, repository and branch.
+  destroy/create. The schema now applies the documented `github` default, so
+  changing `check_suites` reaches Railway's in-place update mutation.
 - **Every resource lost its `id` during an update, so the provider sent an empty
   string to Railway.** `id` was `Computed` with no plan modifier on all nine
   resources, which makes it UNKNOWN in the plan of any update — so

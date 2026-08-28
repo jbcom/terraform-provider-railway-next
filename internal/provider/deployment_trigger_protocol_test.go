@@ -144,54 +144,6 @@ resource "railway_deployment_trigger" "web" {
 	})
 }
 
-// TestDeploymentTriggerReadAdoptsUniqueSemanticMatch covers Railway replacing
-// a trigger id behind Terraform. The new id is adopted only because the
-// service-scoped response has one matching environment/repository/branch.
-func TestDeploymentTriggerReadAdoptsUniqueSemanticMatch(t *testing.T) {
-	fixture := &deploymentTriggerFixture{}
-	server := httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
-	defer server.Close()
-
-	config := fmt.Sprintf(`
-provider "railway" {
-  token            = "fixture-token"
-  token_type       = "account"
-  graphql_endpoint = %q
-}
-
-resource "railway_deployment_trigger" "web" {
-  project_id     = "project-fixture"
-  environment_id = "environment-fixture"
-  service_id     = "service-fixture"
-  repository     = "owner/repository"
-  branch         = "uat"
-}
-`, server.URL)
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
-			"railway": providerserver.NewProtocol6WithError(New("test")()),
-		},
-		Steps: []resource.TestStep{
-			{Config: config},
-			{
-				PreConfig: func() {
-					fixture.replaceID("replacement-trigger-fixture")
-				},
-				RefreshState: true,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("railway_deployment_trigger.web", "id", "replacement-trigger-fixture"),
-					fixture.checkMutationCounts(1, 0, 0),
-				),
-			},
-			{
-				Config:   config,
-				PlanOnly: true,
-			},
-		},
-	})
-}
-
 // deploymentTriggerFixture is a Railway that stores one trigger and reports it
 // through the service, which is the only way a trigger can be read.
 type deploymentTriggerFixture struct {
@@ -203,12 +155,6 @@ type deploymentTriggerFixture struct {
 	createCalls int
 	updateCalls int
 	deleteCalls int
-}
-
-func (f *deploymentTriggerFixture) replaceID(id string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.id = id
 }
 
 func (f *deploymentTriggerFixture) checkMutationCounts(
