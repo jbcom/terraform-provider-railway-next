@@ -66,12 +66,24 @@ mutation ApplyEnvironmentChangeSet(
   $input: JSON!
   $commitMessage: String
   $baseConfigEtag: String
+  $waitForCompletion: Boolean
 ) {
   environmentApplyChangeSet(
     environmentId: $environmentId
     input: $input
     commitMessage: $commitMessage
     baseConfigEtag: $baseConfigEtag
+    # `waitForCompletion` IS WHY EVERY CHANGE-SET RESOURCE NEEDED ITS OWN WAIT.
+    #
+    # Without it Railway returns once the change set is QUEUED, not once it has
+    # been applied. So a bucket delete reported success and left the bucket
+    # registered with `deletedAt` null — Terraform recorded the resource as
+    # destroyed while it was still very much alive, and the next apply hit
+    # `Railway bucket name already exists` against a bucket nothing owned.
+    #
+    # The bespoke polling loops in `bucket`, `volume`, `service` and `postgres`
+    # were all compensating for this one missing argument.
+    waitForCompletion: $waitForCompletion
   ) {
     id
     status
@@ -85,5 +97,42 @@ mutation ApplyEnvironmentChangeSet(
       status
       outputs
     }
+  }
+}
+
+# THE PRIVATE NETWORK, AND THE ADDRESSES SERVICES ACTUALLY GET ON IT.
+#
+# **THIS IS THE ONLY WAY TO LEARN A SERVICE'S PRIVATE ADDRESS**, and it is a
+# question that comes up the moment anything outside Railway needs to reach in
+# — a Tailscale subnet router advertising the range, an operator debugging why
+# one service cannot see another, an ACL that has to name a destination.
+#
+# `privateIps` is EMPTY UNTIL SOMETHING IS RUNNING. The addresses are assigned
+# to containers, not to the service definition, so a service that has never
+# deployed has an endpoint with `syncStatus: ACTIVE` and no addresses. That is
+# a real state rather than an error, and the data source reports it as an empty
+# list rather than failing.
+query GetEnvironmentPrivateNetworks($environmentId: String!) {
+  privateNetworks(environmentId: $environmentId) {
+    publicId
+    name
+    dnsName
+    networkId
+  }
+}
+
+query GetServicePrivateEndpoint(
+  $environmentId: String!
+  $privateNetworkId: String!
+  $serviceId: String!
+) {
+  privateNetworkEndpoint(
+    environmentId: $environmentId
+    privateNetworkId: $privateNetworkId
+    serviceId: $serviceId
+  ) {
+    dnsName
+    privateIps
+    syncStatus
   }
 }

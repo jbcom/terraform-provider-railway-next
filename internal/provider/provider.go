@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/micah5/terraform-provider-railway-next/internal/client"
 	"github.com/micah5/terraform-provider-railway-next/internal/datasources"
+	"github.com/micah5/terraform-provider-railway-next/internal/ephemeralresources"
 	"github.com/micah5/terraform-provider-railway-next/internal/resources"
 )
 
@@ -108,6 +110,11 @@ func (p *RailwayProvider) Configure(
 	}
 	resp.ResourceData = configured
 	resp.DataSourceData = configured
+	// **EPHEMERAL RESOURCES NEED THEIR OWN ASSIGNMENT.** The framework does not
+	// derive this from the other two, so omitting it left every ephemeral
+	// resource with a nil client — which surfaced as a SIGSEGV in the provider
+	// process rather than as a diagnostic.
+	resp.EphemeralResourceData = configured
 }
 
 func (p *RailwayProvider) Resources(context.Context) []func() resource.Resource {
@@ -115,6 +122,7 @@ func (p *RailwayProvider) Resources(context.Context) []func() resource.Resource 
 		resources.NewProject,
 		resources.NewEnvironment,
 		resources.NewService,
+		resources.NewDeploymentTrigger,
 		resources.NewVolume,
 		resources.NewVariableCollection,
 		resources.NewSecret,
@@ -124,12 +132,28 @@ func (p *RailwayProvider) Resources(context.Context) []func() resource.Resource 
 	}
 }
 
+// EphemeralResources registers values that must never reach state.
+//
+// **THE PROVIDER IMPLEMENTED NO EPHEMERAL RESOURCES BEFORE THIS**, which meant
+// a bucket's real S3 credentials were unreachable except by hand — the only
+// safe options the provider offered were reference expressions, which work
+// solely for a consumer running inside Railway. Modelling them as a data source
+// instead would have written a live secret into the state file.
+var _ provider.ProviderWithEphemeralResources = (*RailwayProvider)(nil)
+
+func (p *RailwayProvider) EphemeralResources(context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		ephemeralresources.NewBucketCredentials,
+	}
+}
+
 func (p *RailwayProvider) DataSources(context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		datasources.NewProject,
 		datasources.NewEnvironment,
 		datasources.NewService,
 		datasources.NewBucket,
+		datasources.NewBucketCredentials,
 		datasources.NewDeploymentStatus,
 	}
 }

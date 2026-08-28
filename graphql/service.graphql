@@ -11,6 +11,16 @@ fragment ServiceInstanceFields on ServiceInstance {
   environmentId
   serviceId
   serviceName
+  # **HAS THIS SERVICE EVER RUN?** Railway's own description says it
+  # *"distinguishes a service that was torn down"* from one that has never
+  # deployed — and `latestDeployment` is null for BOTH, so without this the two
+  # are indistinguishable through the API.
+  #
+  # That distinction is not academic. A service with a repository attached and
+  # no deployment trigger sits at `latestDeployment: null` forever while
+  # reporting as correctly configured, and the only way to tell it apart from a
+  # service whose deployments were removed is this field.
+  hasEverDeployed
   buildCommand
   builder
   dockerfilePath
@@ -50,6 +60,14 @@ query GetService($id: String!, $environmentId: String!) {
           environmentId
           branch
           repository
+          # `provider` AND `checkSuites` ARE WHAT MAKE AN IMPORT ROUND-TRIP.
+          #
+          # Without them `railway_deployment_trigger`'s Read left both unset,
+          # so an imported trigger planned as a REPLACEMENT — `provider_name`
+          # forces replacement, and an attribute the read never fills is an
+          # attribute the plan always sees as changing.
+          provider
+          checkSuites
         }
       }
     }
@@ -120,4 +138,41 @@ mutation UpdateServiceInstanceLimits(
 
 mutation DeleteService($id: String!, $environmentId: String) {
   serviceDelete(id: $id, environmentId: $environmentId)
+}
+
+# THE THING THAT MAKES A GITHUB-SOURCED SERVICE ACTUALLY DEPLOY.
+#
+# **A SERVICE CAN HAVE A REPOSITORY ATTACHED AND STILL NEVER BUILD.** The
+# source tells Railway what the service is made of; the TRIGGER is what
+# connects a push on a branch to a deployment. Without one the service sits
+# with `latestDeployment: null` forever, and nothing in the Railway UI or the
+# API says why — it looks correctly configured, because it is, apart from this.
+#
+# Observed against a live account: four services with their sources correctly
+# attached, zero `repoTriggers` between them, and no deployment ever.
+mutation CreateDeploymentTrigger($input: DeploymentTriggerCreateInput!) {
+  deploymentTriggerCreate(input: $input) {
+    ...DeploymentTriggerFields
+  }
+}
+
+mutation UpdateDeploymentTrigger($id: String!, $input: DeploymentTriggerUpdateInput!) {
+  deploymentTriggerUpdate(id: $id, input: $input) {
+    ...DeploymentTriggerFields
+  }
+}
+
+mutation DeleteDeploymentTrigger($id: String!) {
+  deploymentTriggerDelete(id: $id)
+}
+
+fragment DeploymentTriggerFields on DeploymentTrigger {
+  id
+  branch
+  repository
+  provider
+  projectId
+  environmentId
+  serviceId
+  checkSuites
 }

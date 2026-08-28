@@ -22,5 +22,15 @@ bindings:
     type: encoding/json.RawMessage
   DateTime:
     type: string
+  # **RAILWAY DECLARES `BigInt` AND SENDS A JSON NUMBER.**
+  #
+  # Bound to `string`, every read failed with:
+  #
+  #   json: cannot unmarshal number into Go struct field
+  #   ...bucketInstanceDetails.objectCount of type string
+  #
+  # `json.Number` accepts either form and keeps the digits exactly as they
+  # arrived, which is the point of a BigInt: a count large enough to lose
+  # precision as a float64 must not be routed through one.
   BigInt:
-    type: string
+    type: encoding/json.Number

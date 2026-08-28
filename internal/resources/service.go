@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	railway "github.com/micah5/terraform-provider-railway-next/graphql"
 	"github.com/micah5/terraform-provider-railway-next/internal/client"
+	"github.com/micah5/terraform-provider-railway-next/internal/privatenet"
 )
 
 var (
@@ -61,6 +62,9 @@ type serviceModel struct {
 	WatchPatterns          types.Set      `tfsdk:"watch_patterns"`
 	LatestDeploymentID     types.String   `tfsdk:"latest_deployment_id"`
 	LatestDeploymentStatus types.String   `tfsdk:"latest_deployment_status"`
+	HasEverDeployed        types.Bool     `tfsdk:"has_ever_deployed"`
+	PrivateDNSName         types.String   `tfsdk:"private_dns_name"`
+	PrivateIPs             types.List     `tfsdk:"private_ips"`
 	Timeouts               timeouts.Value `tfsdk:"timeouts"`
 }
 
@@ -92,7 +96,7 @@ func (r *Service) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway service and its configuration in one environment. Creation is distinct from deployment success; latest deployment status is exposed separately.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway service ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -157,6 +161,44 @@ func (r *Service) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 				Computed:    true,
 				ElementType: types.StringType,
 			},
+			// **THE SERVICE'S ADDRESS ON RAILWAY'S PRIVATE NETWORK.**
+			//
+			// On the RESOURCE as well as the data source, because otherwise
+			// wiring anything to a service you just declared means looking it
+			// up again with a data source — a second read of a thing Terraform
+			// is already managing.
+			//
+			// It is the question anything reaching INTO Railway has to answer:
+			// a Tailscale subnet router deciding what to advertise, an ACL
+			// naming a destination, an operator working out why one service
+			// cannot see another.
+			//
+			// **`private_ips` IS EMPTY UNTIL SOMETHING IS RUNNING.** The
+			// addresses belong to containers rather than to the service
+			// definition, so a service that has never deployed has an active
+			// endpoint and no addresses. That is a real state, not an error —
+			// and it means this attribute CHANGES when a deployment starts,
+			// which is why it is Computed rather than something a plan can pin.
+			// **HAS THIS SERVICE EVER RUN?** `latestDeployment` is null both
+			// for a service that never deployed and for one whose deployments
+			// were removed, so without this they are indistinguishable — and
+			// the first is a misconfiguration while the second is a teardown.
+			"has_ever_deployed": schema.BoolAttribute{
+				Computed: true,
+				MarkdownDescription: "Whether any deployment was ever created for this service, including ones " +
+					"since removed. False on a service that has never built — which is what a missing " +
+					"`railway_deployment_trigger` looks like.",
+			},
+			"private_dns_name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The service's name on the private network. Reachable as `<name>.railway.internal`.",
+			},
+			"private_ips": schema.ListAttribute{
+				Computed:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "Addresses this service holds on the private network. Empty until it has a running deployment.",
+			},
+
 			"timeouts": timeouts.AttributesAll(ctx),
 		},
 	}
@@ -179,39 +221,89 @@ func (r *Service) Create(ctx context.Context, req resource.CreateRequest, resp *
 	defer cancel()
 	unlockEnvironment := lockEnvironmentChangeSet(plan.EnvironmentID.ValueString())
 	defer unlockEnvironment()
-	result, err := railway.CreateService(ctx, r.client.GraphQL(), railway.ServiceCreateInput{
+	// **THE SOURCE GOES IN THE CREATE, not a second mutation.**
+	//
+	// `ServiceCreateInput` accepts `source` and `branch`, and Railway's own API
+	// cookbook shows exactly that — "Create service from GitHub" is one call.
+	//
+	// The two-step form here called `serviceConnect` afterwards, and that
+	// mutation takes only a service id: it resolves the service INSTANCE
+	// itself, and in a project with several environments it resolves the wrong
+	// one. Against a project containing `ci` and `uat` it failed every time
+	// with `ServiceInstance not found`, while the instance demonstrably existed
+	// in the environment asked for.
+	//
+	// Reproduced outside Terraform to be sure it was the API and not the
+	// provider: calling `serviceConnect` by hand on a freshly created service
+	// gives the same error, and creating with `source` in one call attaches the
+	// repository to the right instance immediately.
+	//
+	// This also removes the partial-failure window entirely rather than making
+	// it recoverable: there is no longer a moment where the service exists and
+	// its source does not.
+	createInput := railway.ServiceCreateInput{
 		ProjectId:     plan.ProjectID.ValueString(),
 		EnvironmentId: stringPointer(plan.EnvironmentID),
 		Name:          stringPointer(plan.Name),
-	})
+	}
+	if plan.SourceType.ValueString() != "empty" {
+		createInput.Branch = stringPointer(plan.Branch)
+		createInput.Source = &railway.ServiceSourceInput{
+			Image: stringPointer(plan.Image),
+			Repo:  stringPointer(plan.Repository),
+		}
+	}
+
+	result, err := railway.CreateService(ctx, r.client.GraphQL(), createInput)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create Railway service", client.DecodeAPIError(err).Error())
 		return
 	}
 	plan.ID = types.StringValue(result.ServiceCreate.Id)
-	if plan.SourceType.ValueString() != "empty" {
-		_, err = railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.ServiceConnectInput{
-			Branch: stringPointer(plan.Branch),
-			Image:  stringPointer(plan.Image),
-			Repo:   stringPointer(plan.Repository),
-		})
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Railway service created but source connection failed",
-				"The service was created with ID "+plan.ID.ValueString()+
-					", but its source could not be connected. Import or remove the orphaned service before retrying. "+
-					client.DecodeAPIError(err).Error(),
-			)
-			return
-		}
+
+	// The service exists in Railway now, so every failure path below must still
+	// record it in state.
+	//
+	// Returning early after a successful create makes Terraform discard the plan
+	// and persist nothing. The service is real, Terraform does not know about
+	// it, and the next apply fails with `A service named "x" already exists in
+	// this project` — a loop with no way out except deleting the service by
+	// hand, which is exactly what the previous error message had to ask for.
+	//
+	// Saving the partial state means a retry updates the service it already
+	// created. The apply still fails and still reports why; the failure is
+	// simply recoverable rather than terminal.
+	//
+	// This is the usual convention for a resource whose creation is not one
+	// atomic call: persist as soon as the remote object exists, then continue
+	// configuring it.
+	// **EVERY VALUE MUST BE KNOWN WHEN STATE IS WRITTEN.** Terraform rejects an
+	// apply result that still contains an unknown:
+	//
+	//   Provider returned invalid result object after apply … the provider
+	//   still indicated an unknown value for … .builder
+	//
+	// On the happy path `refresh` resolves those from Railway. On a failure
+	// path it has not run, so anything Optional+Computed the plan left unknown
+	// is still unknown — and persisting that is a second bug rather than a fix.
+	//
+	// `ResolveUnknowns` nulls ONLY the unknowns, leaving configured values
+	// alone. Nulling everything would discard the practitioner's own
+	// configuration from state, which is worse than the orphan being fixed.
+	saveState := func() {
+		ResolveUnknowns(&plan)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	}
+
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
+		saveState()
 		return
 	}
 	if !r.refresh(ctx, &plan, true, &resp.Diagnostics) {
+		saveState()
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	saveState()
 }
 
 func (r *Service) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -259,18 +351,43 @@ func (r *Service) Update(ctx context.Context, req resource.UpdateRequest, resp *
 		}
 	}
 	if sourceChanged(&plan, &prior) {
-		input := railway.ServiceConnectInput{
-			Branch: stringPointer(plan.Branch),
-			Image:  stringPointer(plan.Image),
-			Repo:   stringPointer(plan.Repository),
+		// **`serviceInstanceUpdate`, NOT `serviceConnect`** — for the same
+		// reason Create no longer uses the latter.
+		//
+		// `serviceConnect` takes only a service id and resolves the service
+		// INSTANCE itself, which in a project with several environments
+		// resolves the wrong one: it fails with `ServiceInstance not found`
+		// while the instance demonstrably exists in the environment asked for.
+		// Verified by calling both mutations by hand against live Railway.
+		//
+		// `serviceInstanceUpdate` takes an explicit `environmentId`, so the
+		// instance is named rather than guessed — and its input carries
+		// `source`, so it does the same job without the ambiguity.
+		input := railway.ServiceInstanceUpdateInput{
+			Source: &railway.ServiceSourceInput{
+				Image: stringPointer(plan.Image),
+				Repo:  stringPointer(plan.Repository),
+			},
 		}
 		if plan.SourceType.ValueString() == "empty" {
-			input = railway.ServiceConnectInput{}
+			input = railway.ServiceInstanceUpdateInput{}
 		}
-		if _, err := railway.ConnectService(ctx, r.client.GraphQL(), plan.ID.ValueString(), input); err != nil {
+		if _, err := railway.UpdateServiceInstance(
+			ctx,
+			r.client.GraphQL(),
+			plan.EnvironmentID.ValueString(),
+			plan.ID.ValueString(),
+			input,
+		); err != nil {
 			resp.Diagnostics.AddError("Unable to update Railway service source", client.DecodeAPIError(err).Error())
 			return
 		}
+
+		// NO SEPARATE NAME UPDATE HERE. An earlier version re-sent the name
+		// alongside the source change and got `Not Authorized` — the rename
+		// block above already handles a changed name, and repeating it inside
+		// the source branch asked for a permission the source change does not
+		// need.
 	}
 	if !r.updateInstance(ctx, &plan, &resp.Diagnostics) {
 		return
@@ -384,6 +501,36 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 	return true
 }
 
+// waitForServiceInstance blocks until Railway exposes a service instance for
+// this service in its environment.
+//
+// `CreateService` returns when the SERVICE exists; `ConnectService` operates on
+// its per-environment INSTANCE, which Railway materialises a moment later.
+// Without this wait the connect fails with `ServiceInstance not found` — an
+// error that names the wrong thing and reads like a bug in the caller.
+//
+// The ceiling is the CALLER'S timeout, not a number chosen here — see
+// `awaitConsistency`.
+func (r *Service) waitForServiceInstance(ctx context.Context, plan *serviceModel) error {
+	return awaitConsistency(ctx, consistencyPollInterval, func(ctx context.Context) error {
+		result, err := railway.GetService(
+			ctx,
+			r.client.GraphQL(),
+			plan.ID.ValueString(),
+			plan.EnvironmentID.ValueString(),
+		)
+		if err != nil {
+			return err
+		}
+		for _, edge := range result.Environment.ServiceInstances.Edges {
+			if edge.Node.ServiceId == plan.ID.ValueString() {
+				return nil
+			}
+		}
+		return errNotReady
+	})
+}
+
 func (r *Service) refresh(
 	ctx context.Context,
 	state *serviceModel,
@@ -482,6 +629,16 @@ func (r *Service) refresh(
 			}
 		}
 	}
+
+	// THE PRIVATE-NETWORK ADDRESS, read through the same helper the data
+	// source uses so the two cannot disagree about what one is.
+	endpoint := privatenet.Read(
+		ctx, r.client, state.EnvironmentID.ValueString(), state.ID.ValueString(), diagnostics)
+	state.PrivateDNSName = types.StringValue(endpoint.DNSName)
+	addresses, addressDiags := types.ListValueFrom(ctx, types.StringType, endpoint.IPs)
+	diagnostics.Append(addressDiags...)
+	state.PrivateIPs = addresses
+
 	return !diagnostics.HasError()
 }
 
@@ -513,6 +670,7 @@ func resetServiceOptionalComputedState(state *serviceModel) {
 }
 
 func setServiceInstanceState(ctx context.Context, state *serviceModel, remote *railway.ServiceInstanceFields, diagnostics *diag.Diagnostics) {
+	state.HasEverDeployed = types.BoolValue(remote.HasEverDeployed)
 	state.BuildCommand = valueString(remote.BuildCommand)
 	state.Builder = types.StringValue(string(remote.Builder))
 	state.DockerfilePath = valueString(remote.DockerfilePath)

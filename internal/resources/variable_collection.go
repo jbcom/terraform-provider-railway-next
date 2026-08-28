@@ -48,7 +48,7 @@ func (r *VariableCollection) Schema(ctx context.Context, _ resource.SchemaReques
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "An authoritative collection of only the listed Railway variables for one service/environment. Updates, including removals, are committed atomically and cause at most one deployment. Other remote variables are preserved. Values are stored in Terraform state; use railway_secret for secrets.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway variable collection ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{

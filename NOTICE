@@ -10,3 +10,17 @@ MIT-licensed railway-ts-sdk:
 
 No source code from the TypeScript SDK is imported or executed by the provider.
 The SDK's MIT license remains available in its upstream repository.
+
+Contributors
+------------
+
+  Jon Bogaty — https://github.com/jbdevprimary
+
+    Four fixes found by running the provider against a live Railway account:
+    resource ids lost during updates (`UseStateForUnknown` on all nine
+    resources), `environmentApplyChangeSet` never waiting for completion, a nil
+    private-network endpoint crashing `terraform import`, and a service source
+    racing the change set when attached through `serviceConnect`.
+
+    Two additions: the `railway_deployment_trigger` resource, without which a
+    service never deploys, and private network addresses exposed as attributes.

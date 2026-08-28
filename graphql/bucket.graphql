@@ -5,6 +5,14 @@ fragment BucketFields on Bucket {
   groupId
   createdAt
   updatedAt
+  # `deletedAt` DISTINGUISHES A LIVE BUCKET FROM RAILWAY'S TOMBSTONE.
+  #
+  # Railway retains a deleted bucket through a delayed permanent-deletion
+  # window, and it keeps LISTING it the whole time. Without this field the
+  # provider cannot tell "this name is taken by a real bucket" from "this name
+  # is held by one that is on its way out", so a replace — destroy then create
+  # with the same name — refuses its own recreate.
+  deletedAt
 }
 
 query ListProjectBuckets($projectId: String!) {
@@ -28,5 +36,53 @@ mutation CreateBucket($input: BucketCreateInput!) {
 mutation UpdateBucket($id: String!, $input: BucketUpdateInput!) {
   bucketUpdate(id: $id, input: $input) {
     ...BucketFields
+  }
+}
+
+# THE BUCKET'S REAL S3 CREDENTIALS.
+#
+# **These are SECRETS, and they are the reason `railway_bucket_credentials` is
+# an EPHEMERAL RESOURCE rather than a data source.** A data source writes its
+# result to state; this must never be written anywhere. Terraform 1.10+ keeps an
+# ephemeral result in memory for the duration of the operation and discards it.
+#
+# The `railway_bucket` resource deliberately exposes only reference
+# EXPRESSIONS — `${{media.SECRET_ACCESS_KEY}}` — which Railway resolves at
+# deploy time. That stays the right default for wiring one Railway service to
+# one Railway bucket. This query is for the case a reference cannot serve: a
+# consumer OUTSIDE Railway, such as a local `terraform` run that must upload a
+# seed object, or a non-Railway system that reads the same bucket.
+query GetBucketS3Credentials(
+  $bucketId: String!
+  $environmentId: String!
+  $projectId: String!
+) {
+  bucketS3Credentials(
+    bucketId: $bucketId
+    environmentId: $environmentId
+    projectId: $projectId
+  ) {
+    accessKeyId
+    secretAccessKey
+    bucketName
+    endpoint
+    region
+    urlStyle
+    createdAt
+  }
+}
+
+# HOW MUCH IS ACTUALLY IN THE BUCKET.
+#
+# No secrets, so this belongs in the ordinary `railway_bucket` data source.
+#
+# `objectCount` answers the question that governs whether destroying a bucket is
+# safe, and it was previously unanswerable through the provider — the decision
+# to let uat's media bucket be replaced had to be made by reasoning about how
+# recently it was created rather than by reading a count.
+query GetBucketInstanceDetails($bucketId: String!, $environmentId: String!) {
+  bucketInstanceDetails(bucketId: $bucketId, environmentId: $environmentId) {
+    objectCount
+    sizeBytes
   }
 }

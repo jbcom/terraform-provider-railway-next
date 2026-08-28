@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	railway "github.com/micah5/terraform-provider-railway-next/graphql"
 	"github.com/micah5/terraform-provider-railway-next/internal/client"
+	"github.com/micah5/terraform-provider-railway-next/internal/privatenet"
 )
 
 type Service struct{ client *client.Client }
@@ -20,6 +21,8 @@ type serviceModel struct {
 	Name                   types.String `tfsdk:"name"`
 	LatestDeploymentID     types.String `tfsdk:"latest_deployment_id"`
 	LatestDeploymentStatus types.String `tfsdk:"latest_deployment_status"`
+	PrivateDNSName         types.String `tfsdk:"private_dns_name"`
+	PrivateIPs             types.List   `tfsdk:"private_ips"`
 }
 
 func NewService() datasource.DataSource { return &Service{} }
@@ -36,6 +39,27 @@ func (d *Service) Schema(_ context.Context, _ datasource.SchemaRequest, resp *da
 		"name":                     schema.StringAttribute{Optional: true, Computed: true},
 		"latest_deployment_id":     schema.StringAttribute{Computed: true},
 		"latest_deployment_status": schema.StringAttribute{Computed: true},
+
+		// **THE SERVICE'S ADDRESS ON RAILWAY'S PRIVATE NETWORK.**
+		//
+		// This is the question anything reaching INTO Railway has to answer —
+		// a Tailscale subnet router deciding what to advertise, an ACL naming
+		// a destination, an operator working out why one service cannot see
+		// another — and it was previously unanswerable through the provider.
+		//
+		// `private_ips` is EMPTY UNTIL SOMETHING IS RUNNING, and that is a
+		// real state rather than an error: the addresses belong to containers,
+		// not to the service definition, so a service that has never deployed
+		// has an active endpoint and no addresses.
+		"private_dns_name": schema.StringAttribute{
+			Computed:            true,
+			MarkdownDescription: "The service's name on the private network. Reachable as `<name>.railway.internal`.",
+		},
+		"private_ips": schema.ListAttribute{
+			Computed:            true,
+			ElementType:         types.StringType,
+			MarkdownDescription: "Addresses this service holds on the private network. Empty until it has a running deployment.",
+		},
 	}}
 }
 
@@ -86,5 +110,14 @@ func (d *Service) Read(ctx context.Context, req datasource.ReadRequest, resp *da
 			config.LatestDeploymentStatus = types.StringValue(string(edge.Node.LatestDeployment.Status))
 		}
 	}
+	endpoint := privatenet.Read(ctx, d.client, config.EnvironmentID.ValueString(), serviceID, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	config.PrivateDNSName = types.StringValue(endpoint.DNSName)
+	addresses, diags := types.ListValueFrom(ctx, types.StringType, endpoint.IPs)
+	resp.Diagnostics.Append(diags...)
+	config.PrivateIPs = addresses
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 }
