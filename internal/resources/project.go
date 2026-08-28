@@ -49,10 +49,7 @@ func (r *Project) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway project. Destroying this resource permanently deletes the project and everything in it; review the destroy plan carefully.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Railway project ID.",
-			},
+			"id": idAttribute("Railway project ID."),
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Project display name.",
@@ -151,6 +148,20 @@ func (r *Project) Create(ctx context.Context, req resource.CreateRequest, resp *
 				plan.ID = types.StringValue(remote.Id)
 				plan.DefaultEnvironmentName = types.StringValue(*defaultName)
 				setProjectState(&plan, remote)
+				// **THE PROJECT EXISTS AND THE ROLLBACK FAILED, SO THIS STATE
+				// IS THE ONLY RECORD OF IT — AND IT MUST BE A VALID ONE.**
+				//
+				// `setProjectState` fills what Railway returned, but anything
+				// Optional+Computed the plan left unknown and the response does
+				// not cover is still unknown. Terraform rejects an apply result
+				// containing an unknown outright:
+				//
+				//	Provider returned invalid result object after apply
+				//
+				// which would replace a precise error about a failed rollback
+				// with a protocol failure — AND still lose the project, which
+				// is the orphan this whole path exists to prevent.
+				ResolveUnknowns(&plan)
 				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 				resp.Diagnostics.AddError(
 					"Unable to finish creating Railway project",

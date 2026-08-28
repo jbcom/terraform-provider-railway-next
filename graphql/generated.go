@@ -95,9 +95,14 @@ func (v *ApplyEnvironmentChangeSetResponse) GetEnvironmentApplyChangeSet() Apply
 }
 
 type BucketCreateInput struct {
+	// [unimplemented] The environment to deploy the bucket instances into. If
+	// `null`, the bucket will not be deployed to any environment. `undefined` will
+	// deploy to all environments.
 	EnvironmentId *string `json:"environmentId"`
-	Name          *string `json:"name"`
-	ProjectId     string  `json:"projectId"`
+	// The name of the bucket
+	Name *string `json:"name"`
+	// The project to create the bucket in
+	ProjectId string `json:"projectId"`
 }
 
 // GetEnvironmentId returns BucketCreateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -117,6 +122,7 @@ type BucketFields struct {
 	GroupId   *string `json:"groupId"`
 	CreatedAt string  `json:"createdAt"`
 	UpdatedAt string  `json:"updatedAt"`
+	DeletedAt *string `json:"deletedAt"`
 }
 
 // GetId returns BucketFields.Id, and is useful for accessing the field via an interface.
@@ -136,6 +142,9 @@ func (v *BucketFields) GetCreatedAt() string { return v.CreatedAt }
 
 // GetUpdatedAt returns BucketFields.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *BucketFields) GetUpdatedAt() string { return v.UpdatedAt }
+
+// GetDeletedAt returns BucketFields.DeletedAt, and is useful for accessing the field via an interface.
+func (v *BucketFields) GetDeletedAt() *string { return v.DeletedAt }
 
 type BucketUpdateInput struct {
 	Name string `json:"name"`
@@ -272,6 +281,9 @@ func (v *CreateBucketBucketCreateBucket) GetCreatedAt() string { return v.Bucket
 // GetUpdatedAt returns CreateBucketBucketCreateBucket.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *CreateBucketBucketCreateBucket) GetUpdatedAt() string { return v.BucketFields.UpdatedAt }
 
+// GetDeletedAt returns CreateBucketBucketCreateBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *CreateBucketBucketCreateBucket) GetDeletedAt() *string { return v.BucketFields.DeletedAt }
+
 func (v *CreateBucketBucketCreateBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -309,6 +321,8 @@ type __premarshalCreateBucketBucketCreateBucket struct {
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *CreateBucketBucketCreateBucket) MarshalJSON() ([]byte, error) {
@@ -328,6 +342,7 @@ func (v *CreateBucketBucketCreateBucket) __premarshalJSON() (*__premarshalCreate
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -469,6 +484,127 @@ type CreateCustomDomainResponse struct {
 // GetCustomDomainCreate returns CreateCustomDomainResponse.CustomDomainCreate, and is useful for accessing the field via an interface.
 func (v *CreateCustomDomainResponse) GetCustomDomainCreate() CreateCustomDomainCustomDomainCreateCustomDomain {
 	return v.CustomDomainCreate
+}
+
+// CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger includes the requested fields of the GraphQL type DeploymentTrigger.
+type CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger struct {
+	DeploymentTriggerFields `json:"-"`
+}
+
+// GetId returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.Id, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetId() string {
+	return v.DeploymentTriggerFields.Id
+}
+
+// GetBranch returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.Branch, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetBranch() string {
+	return v.DeploymentTriggerFields.Branch
+}
+
+// GetRepository returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.Repository, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetRepository() string {
+	return v.DeploymentTriggerFields.Repository
+}
+
+// GetProvider returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.Provider, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetProvider() string {
+	return v.DeploymentTriggerFields.Provider
+}
+
+// GetProjectId returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.ProjectId, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetProjectId() string {
+	return v.DeploymentTriggerFields.ProjectId
+}
+
+// GetEnvironmentId returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetEnvironmentId() string {
+	return v.DeploymentTriggerFields.EnvironmentId
+}
+
+// GetServiceId returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.ServiceId, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetServiceId() *string {
+	return v.DeploymentTriggerFields.ServiceId
+}
+
+// GetCheckSuites returns CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger.CheckSuites, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) GetCheckSuites() bool {
+	return v.DeploymentTriggerFields.CheckSuites
+}
+
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.DeploymentTriggerFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalCreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger struct {
+	Id string `json:"id"`
+
+	Branch string `json:"branch"`
+
+	Repository string `json:"repository"`
+
+	Provider string `json:"provider"`
+
+	ProjectId string `json:"projectId"`
+
+	EnvironmentId string `json:"environmentId"`
+
+	ServiceId *string `json:"serviceId"`
+
+	CheckSuites bool `json:"checkSuites"`
+}
+
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger) __premarshalJSON() (*__premarshalCreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger, error) {
+	var retval __premarshalCreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger
+
+	retval.Id = v.DeploymentTriggerFields.Id
+	retval.Branch = v.DeploymentTriggerFields.Branch
+	retval.Repository = v.DeploymentTriggerFields.Repository
+	retval.Provider = v.DeploymentTriggerFields.Provider
+	retval.ProjectId = v.DeploymentTriggerFields.ProjectId
+	retval.EnvironmentId = v.DeploymentTriggerFields.EnvironmentId
+	retval.ServiceId = v.DeploymentTriggerFields.ServiceId
+	retval.CheckSuites = v.DeploymentTriggerFields.CheckSuites
+	return &retval, nil
+}
+
+// CreateDeploymentTriggerResponse is returned by CreateDeploymentTrigger on success.
+type CreateDeploymentTriggerResponse struct {
+	// Creates a deployment trigger.
+	DeploymentTriggerCreate CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger `json:"deploymentTriggerCreate"`
+}
+
+// GetDeploymentTriggerCreate returns CreateDeploymentTriggerResponse.DeploymentTriggerCreate, and is useful for accessing the field via an interface.
+func (v *CreateDeploymentTriggerResponse) GetDeploymentTriggerCreate() CreateDeploymentTriggerDeploymentTriggerCreateDeploymentTrigger {
+	return v.DeploymentTriggerCreate
 }
 
 // CreateEnvironmentEnvironmentCreateEnvironment includes the requested fields of the GraphQL type Environment.
@@ -1110,6 +1246,17 @@ type DeleteCustomDomainResponse struct {
 // GetCustomDomainDelete returns DeleteCustomDomainResponse.CustomDomainDelete, and is useful for accessing the field via an interface.
 func (v *DeleteCustomDomainResponse) GetCustomDomainDelete() bool { return v.CustomDomainDelete }
 
+// DeleteDeploymentTriggerResponse is returned by DeleteDeploymentTrigger on success.
+type DeleteDeploymentTriggerResponse struct {
+	// Deletes a deployment trigger.
+	DeploymentTriggerDelete bool `json:"deploymentTriggerDelete"`
+}
+
+// GetDeploymentTriggerDelete returns DeleteDeploymentTriggerResponse.DeploymentTriggerDelete, and is useful for accessing the field via an interface.
+func (v *DeleteDeploymentTriggerResponse) GetDeploymentTriggerDelete() bool {
+	return v.DeploymentTriggerDelete
+}
+
 // DeleteEnvironmentResponse is returned by DeleteEnvironment on success.
 type DeleteEnvironmentResponse struct {
 	// Deletes an environment.
@@ -1198,14 +1345,110 @@ var AllDeploymentStatus = []DeploymentStatus{
 	DeploymentStatusWaiting,
 }
 
+type DeploymentTriggerCreateInput struct {
+	Branch        string  `json:"branch"`
+	CheckSuites   *bool   `json:"checkSuites"`
+	EnvironmentId string  `json:"environmentId"`
+	ProjectId     string  `json:"projectId"`
+	Provider      string  `json:"provider"`
+	Repository    string  `json:"repository"`
+	RootDirectory *string `json:"rootDirectory"`
+	ServiceId     string  `json:"serviceId"`
+}
+
+// GetBranch returns DeploymentTriggerCreateInput.Branch, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetBranch() string { return v.Branch }
+
+// GetCheckSuites returns DeploymentTriggerCreateInput.CheckSuites, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetCheckSuites() *bool { return v.CheckSuites }
+
+// GetEnvironmentId returns DeploymentTriggerCreateInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetProjectId returns DeploymentTriggerCreateInput.ProjectId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetProjectId() string { return v.ProjectId }
+
+// GetProvider returns DeploymentTriggerCreateInput.Provider, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetProvider() string { return v.Provider }
+
+// GetRepository returns DeploymentTriggerCreateInput.Repository, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetRepository() string { return v.Repository }
+
+// GetRootDirectory returns DeploymentTriggerCreateInput.RootDirectory, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetRootDirectory() *string { return v.RootDirectory }
+
+// GetServiceId returns DeploymentTriggerCreateInput.ServiceId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerCreateInput) GetServiceId() string { return v.ServiceId }
+
+// DeploymentTriggerFields includes the GraphQL fields of DeploymentTrigger requested by the fragment DeploymentTriggerFields.
+type DeploymentTriggerFields struct {
+	Id            string  `json:"id"`
+	Branch        string  `json:"branch"`
+	Repository    string  `json:"repository"`
+	Provider      string  `json:"provider"`
+	ProjectId     string  `json:"projectId"`
+	EnvironmentId string  `json:"environmentId"`
+	ServiceId     *string `json:"serviceId"`
+	CheckSuites   bool    `json:"checkSuites"`
+}
+
+// GetId returns DeploymentTriggerFields.Id, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetId() string { return v.Id }
+
+// GetBranch returns DeploymentTriggerFields.Branch, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetBranch() string { return v.Branch }
+
+// GetRepository returns DeploymentTriggerFields.Repository, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetRepository() string { return v.Repository }
+
+// GetProvider returns DeploymentTriggerFields.Provider, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetProvider() string { return v.Provider }
+
+// GetProjectId returns DeploymentTriggerFields.ProjectId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetProjectId() string { return v.ProjectId }
+
+// GetEnvironmentId returns DeploymentTriggerFields.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetServiceId returns DeploymentTriggerFields.ServiceId, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetServiceId() *string { return v.ServiceId }
+
+// GetCheckSuites returns DeploymentTriggerFields.CheckSuites, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerFields) GetCheckSuites() bool { return v.CheckSuites }
+
+type DeploymentTriggerUpdateInput struct {
+	Branch        *string `json:"branch"`
+	CheckSuites   *bool   `json:"checkSuites"`
+	Repository    *string `json:"repository"`
+	RootDirectory *string `json:"rootDirectory"`
+}
+
+// GetBranch returns DeploymentTriggerUpdateInput.Branch, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerUpdateInput) GetBranch() *string { return v.Branch }
+
+// GetCheckSuites returns DeploymentTriggerUpdateInput.CheckSuites, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerUpdateInput) GetCheckSuites() *bool { return v.CheckSuites }
+
+// GetRepository returns DeploymentTriggerUpdateInput.Repository, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerUpdateInput) GetRepository() *string { return v.Repository }
+
+// GetRootDirectory returns DeploymentTriggerUpdateInput.RootDirectory, and is useful for accessing the field via an interface.
+func (v *DeploymentTriggerUpdateInput) GetRootDirectory() *string { return v.RootDirectory }
+
 type EnvironmentCreateInput struct {
-	ApplyChangesInBackground *bool   `json:"applyChangesInBackground"`
-	Ephemeral                *bool   `json:"ephemeral"`
-	Name                     string  `json:"name"`
-	ProjectId                string  `json:"projectId"`
-	SkipInitialDeploys       *bool   `json:"skipInitialDeploys"`
-	SourceEnvironmentId      *string `json:"sourceEnvironmentId"`
-	StageInitialChanges      *bool   `json:"stageInitialChanges"`
+	// If true, the changes will be applied in the background and the mutation will
+	// return immediately. If false, the mutation will wait for the changes to be
+	// applied before returning.
+	ApplyChangesInBackground *bool  `json:"applyChangesInBackground"`
+	Ephemeral                *bool  `json:"ephemeral"`
+	Name                     string `json:"name"`
+	ProjectId                string `json:"projectId"`
+	// When committing the changes immediately, skip any initial deployments.
+	SkipInitialDeploys *bool `json:"skipInitialDeploys"`
+	// Create the environment with all of the services, volumes, configuration, and variables from this source environment.
+	SourceEnvironmentId *string `json:"sourceEnvironmentId"`
+	// Stage the initial changes for the environment. If false (default), the changes will be committed immediately.
+	StageInitialChanges *bool `json:"stageInitialChanges"`
 }
 
 // GetApplyChangesInBackground returns EnvironmentCreateInput.ApplyChangesInBackground, and is useful for accessing the field via an interface.
@@ -1238,7 +1481,8 @@ type EnvironmentFields struct {
 	ProjectId   string  `json:"projectId"`
 	IsEphemeral bool    `json:"isEphemeral"`
 	DeletedAt   *string `json:"deletedAt"`
-	// Opaque snapshot token of the environment's IaC-relevant config. Echo it back as baseConfigEtag on environmentApplyChangeSet for optimistic concurrency.
+	// Opaque snapshot token of the environment's IaC-relevant config. Echo it back
+	// as baseConfigEtag on environmentApplyChangeSet for optimistic concurrency.
 	ConfigEtag string `json:"configEtag"`
 }
 
@@ -1266,6 +1510,90 @@ type EnvironmentRenameInput struct {
 
 // GetName returns EnvironmentRenameInput.Name, and is useful for accessing the field via an interface.
 func (v *EnvironmentRenameInput) GetName() string { return v.Name }
+
+// GetBucketInstanceDetailsBucketInstanceDetails includes the requested fields of the GraphQL type BucketInstanceDetails.
+type GetBucketInstanceDetailsBucketInstanceDetails struct {
+	ObjectCount json.Number `json:"objectCount"`
+	SizeBytes   json.Number `json:"sizeBytes"`
+}
+
+// GetObjectCount returns GetBucketInstanceDetailsBucketInstanceDetails.ObjectCount, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsBucketInstanceDetails) GetObjectCount() json.Number {
+	return v.ObjectCount
+}
+
+// GetSizeBytes returns GetBucketInstanceDetailsBucketInstanceDetails.SizeBytes, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsBucketInstanceDetails) GetSizeBytes() json.Number {
+	return v.SizeBytes
+}
+
+// GetBucketInstanceDetailsResponse is returned by GetBucketInstanceDetails on success.
+type GetBucketInstanceDetailsResponse struct {
+	// Get the S3-compatible credentials for a bucket
+	BucketInstanceDetails *GetBucketInstanceDetailsBucketInstanceDetails `json:"bucketInstanceDetails"`
+}
+
+// GetBucketInstanceDetails returns GetBucketInstanceDetailsResponse.BucketInstanceDetails, and is useful for accessing the field via an interface.
+func (v *GetBucketInstanceDetailsResponse) GetBucketInstanceDetails() *GetBucketInstanceDetailsBucketInstanceDetails {
+	return v.BucketInstanceDetails
+}
+
+// GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials includes the requested fields of the GraphQL type BucketS3CompatibleCredentials.
+type GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials struct {
+	AccessKeyId     string `json:"accessKeyId"`
+	SecretAccessKey string `json:"secretAccessKey"`
+	BucketName      string `json:"bucketName"`
+	Endpoint        string `json:"endpoint"`
+	Region          string `json:"region"`
+	UrlStyle        string `json:"urlStyle"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+// GetAccessKeyId returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.AccessKeyId, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetAccessKeyId() string {
+	return v.AccessKeyId
+}
+
+// GetSecretAccessKey returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.SecretAccessKey, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetSecretAccessKey() string {
+	return v.SecretAccessKey
+}
+
+// GetBucketName returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.BucketName, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetBucketName() string {
+	return v.BucketName
+}
+
+// GetEndpoint returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.Endpoint, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetEndpoint() string {
+	return v.Endpoint
+}
+
+// GetRegion returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.Region, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetRegion() string {
+	return v.Region
+}
+
+// GetUrlStyle returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.UrlStyle, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetUrlStyle() string {
+	return v.UrlStyle
+}
+
+// GetCreatedAt returns GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials.CreatedAt, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials) GetCreatedAt() string {
+	return v.CreatedAt
+}
+
+// GetBucketS3CredentialsResponse is returned by GetBucketS3Credentials on success.
+type GetBucketS3CredentialsResponse struct {
+	// Get the S3-compatible credentials for a bucket
+	BucketS3Credentials []GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials `json:"bucketS3Credentials"`
+}
+
+// GetBucketS3Credentials returns GetBucketS3CredentialsResponse.BucketS3Credentials, and is useful for accessing the field via an interface.
+func (v *GetBucketS3CredentialsResponse) GetBucketS3Credentials() []GetBucketS3CredentialsBucketS3CredentialsBucketS3CompatibleCredentials {
+	return v.BucketS3Credentials
+}
 
 // GetDeploymentStatusDeployment includes the requested fields of the GraphQL type Deployment.
 type GetDeploymentStatusDeployment struct {
@@ -1507,6 +1835,43 @@ func (v *GetEnvironmentEnvironment) __premarshalJSON() (*__premarshalGetEnvironm
 	retval.DeletedAt = v.EnvironmentFields.DeletedAt
 	retval.ConfigEtag = v.EnvironmentFields.ConfigEtag
 	return &retval, nil
+}
+
+// GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork includes the requested fields of the GraphQL type PrivateNetwork.
+type GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork struct {
+	PublicId  string      `json:"publicId"`
+	Name      string      `json:"name"`
+	DnsName   string      `json:"dnsName"`
+	NetworkId json.Number `json:"networkId"`
+}
+
+// GetPublicId returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.PublicId, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetPublicId() string {
+	return v.PublicId
+}
+
+// GetName returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.Name, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetName() string { return v.Name }
+
+// GetDnsName returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.DnsName, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetDnsName() string {
+	return v.DnsName
+}
+
+// GetNetworkId returns GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork.NetworkId, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork) GetNetworkId() json.Number {
+	return v.NetworkId
+}
+
+// GetEnvironmentPrivateNetworksResponse is returned by GetEnvironmentPrivateNetworks on success.
+type GetEnvironmentPrivateNetworksResponse struct {
+	// List private networks for an environment.
+	PrivateNetworks []GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork `json:"privateNetworks"`
+}
+
+// GetPrivateNetworks returns GetEnvironmentPrivateNetworksResponse.PrivateNetworks, and is useful for accessing the field via an interface.
+func (v *GetEnvironmentPrivateNetworksResponse) GetPrivateNetworks() []GetEnvironmentPrivateNetworksPrivateNetworksPrivateNetwork {
+	return v.PrivateNetworks
 }
 
 // GetEnvironmentResponse is returned by GetEnvironment on success.
@@ -1984,6 +2349,11 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	return v.ServiceInstanceFields.ServiceName
 }
 
+// GetHasEverDeployed returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.HasEverDeployed, and is useful for accessing the field via an interface.
+func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetHasEverDeployed() bool {
+	return v.ServiceInstanceFields.HasEverDeployed
+}
+
 // GetBuildCommand returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.BuildCommand, and is useful for accessing the field via an interface.
 func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetBuildCommand() *string {
 	return v.ServiceInstanceFields.BuildCommand
@@ -2118,6 +2488,8 @@ type __premarshalGetServiceEnvironmentServiceInstancesEnvironmentServiceInstance
 
 	ServiceName string `json:"serviceName"`
 
+	HasEverDeployed bool `json:"hasEverDeployed"`
+
 	BuildCommand *string `json:"buildCommand"`
 
 	Builder Builder `json:"builder"`
@@ -2174,6 +2546,7 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	retval.EnvironmentId = v.ServiceInstanceFields.EnvironmentId
 	retval.ServiceId = v.ServiceInstanceFields.ServiceId
 	retval.ServiceName = v.ServiceInstanceFields.ServiceName
+	retval.HasEverDeployed = v.ServiceInstanceFields.HasEverDeployed
 	retval.BuildCommand = v.ServiceInstanceFields.BuildCommand
 	retval.Builder = v.ServiceInstanceFields.Builder
 	retval.DockerfilePath = v.ServiceInstanceFields.DockerfilePath
@@ -2195,6 +2568,37 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	retval.WatchPatterns = v.ServiceInstanceFields.WatchPatterns
 	retval.LatestDeployment = v.ServiceInstanceFields.LatestDeployment
 	return &retval, nil
+}
+
+// GetServicePrivateEndpointPrivateNetworkEndpoint includes the requested fields of the GraphQL type PrivateNetworkEndpoint.
+type GetServicePrivateEndpointPrivateNetworkEndpoint struct {
+	DnsName    string                           `json:"dnsName"`
+	PrivateIps []string                         `json:"privateIps"`
+	SyncStatus PrivateNetworkEndpointSyncStatus `json:"syncStatus"`
+}
+
+// GetDnsName returns GetServicePrivateEndpointPrivateNetworkEndpoint.DnsName, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetDnsName() string { return v.DnsName }
+
+// GetPrivateIps returns GetServicePrivateEndpointPrivateNetworkEndpoint.PrivateIps, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetPrivateIps() []string {
+	return v.PrivateIps
+}
+
+// GetSyncStatus returns GetServicePrivateEndpointPrivateNetworkEndpoint.SyncStatus, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointPrivateNetworkEndpoint) GetSyncStatus() PrivateNetworkEndpointSyncStatus {
+	return v.SyncStatus
+}
+
+// GetServicePrivateEndpointResponse is returned by GetServicePrivateEndpoint on success.
+type GetServicePrivateEndpointResponse struct {
+	// Get a private network endpoint for a service instance.
+	PrivateNetworkEndpoint *GetServicePrivateEndpointPrivateNetworkEndpoint `json:"privateNetworkEndpoint"`
+}
+
+// GetPrivateNetworkEndpoint returns GetServicePrivateEndpointResponse.PrivateNetworkEndpoint, and is useful for accessing the field via an interface.
+func (v *GetServicePrivateEndpointResponse) GetPrivateNetworkEndpoint() *GetServicePrivateEndpointPrivateNetworkEndpoint {
+	return v.PrivateNetworkEndpoint
 }
 
 // GetServiceResponse is returned by GetService on success.
@@ -2327,6 +2731,8 @@ type GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoT
 	EnvironmentId string `json:"environmentId"`
 	Branch        string `json:"branch"`
 	Repository    string `json:"repository"`
+	Provider      string `json:"provider"`
+	CheckSuites   bool   `json:"checkSuites"`
 }
 
 // GetId returns GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger.Id, and is useful for accessing the field via an interface.
@@ -2347,6 +2753,16 @@ func (v *GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceR
 // GetRepository returns GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger.Repository, and is useful for accessing the field via an interface.
 func (v *GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger) GetRepository() string {
 	return v.Repository
+}
+
+// GetProvider returns GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger.Provider, and is useful for accessing the field via an interface.
+func (v *GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger) GetProvider() string {
+	return v.Provider
+}
+
+// GetCheckSuites returns GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger.CheckSuites, and is useful for accessing the field via an interface.
+func (v *GetServiceServiceRepoTriggersServiceRepoTriggersConnectionEdgesServiceRepoTriggersConnectionEdgeNodeDeploymentTrigger) GetCheckSuites() bool {
+	return v.CheckSuites
 }
 
 // ListDomainsDomainsAllDomains includes the requested fields of the GraphQL type AllDomains.
@@ -2800,6 +3216,11 @@ func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBuc
 	return v.BucketFields.UpdatedAt
 }
 
+// GetDeletedAt returns ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) GetDeletedAt() *string {
+	return v.BucketFields.DeletedAt
+}
+
 func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2837,6 +3258,8 @@ type __premarshalListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesPr
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBucketsConnectionEdgeNodeBucket) MarshalJSON() ([]byte, error) {
@@ -2856,6 +3279,7 @@ func (v *ListProjectBucketsProjectBucketsProjectBucketsConnectionEdgesProjectBuc
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -3200,6 +3624,26 @@ func (v *PreviewEnvironmentChangeSetResponse) GetEnvironmentPreviewChangeSet() P
 	return v.EnvironmentPreviewChangeSet
 }
 
+type PrivateNetworkEndpointSyncStatus string
+
+const (
+	PrivateNetworkEndpointSyncStatusActive      PrivateNetworkEndpointSyncStatus = "ACTIVE"
+	PrivateNetworkEndpointSyncStatusCreating    PrivateNetworkEndpointSyncStatus = "CREATING"
+	PrivateNetworkEndpointSyncStatusDeleted     PrivateNetworkEndpointSyncStatus = "DELETED"
+	PrivateNetworkEndpointSyncStatusDeleting    PrivateNetworkEndpointSyncStatus = "DELETING"
+	PrivateNetworkEndpointSyncStatusUnspecified PrivateNetworkEndpointSyncStatus = "UNSPECIFIED"
+	PrivateNetworkEndpointSyncStatusUpdating    PrivateNetworkEndpointSyncStatus = "UPDATING"
+)
+
+var AllPrivateNetworkEndpointSyncStatus = []PrivateNetworkEndpointSyncStatus{
+	PrivateNetworkEndpointSyncStatusActive,
+	PrivateNetworkEndpointSyncStatusCreating,
+	PrivateNetworkEndpointSyncStatusDeleted,
+	PrivateNetworkEndpointSyncStatusDeleting,
+	PrivateNetworkEndpointSyncStatusUnspecified,
+	PrivateNetworkEndpointSyncStatusUpdating,
+}
+
 type ProjectCreateInput struct {
 	DefaultEnvironmentName *string            `json:"defaultEnvironmentName"`
 	Description            *string            `json:"description"`
@@ -3258,7 +3702,9 @@ type ProjectFields struct {
 	IsPublic          bool    `json:"isPublic"`
 	WorkspaceId       *string `json:"workspaceId"`
 	BaseEnvironmentId *string `json:"baseEnvironmentId"`
-	// The id of the oldest non-ephemeral environment for this project (typically production). Used by the dashboard to render project cards without fetching the full environments connection.
+	// The id of the oldest non-ephemeral environment for this project (typically
+	// production). Used by the dashboard to render project cards without fetching
+	// the full environments connection.
 	PrimaryEnvironmentId  *string                                                `json:"primaryEnvironmentId"`
 	PrDeploys             bool                                                   `json:"prDeploys"`
 	BotPrEnvironments     bool                                                   `json:"botPrEnvironments"`
@@ -3344,9 +3790,11 @@ func (v *ProjectFieldsEnvironmentsProjectEnvironmentsConnectionEdgesProjectEnvir
 }
 
 type ProjectUpdateInput struct {
-	BaseEnvironmentId     *string `json:"baseEnvironmentId"`
-	BotPrEnvironments     *bool   `json:"botPrEnvironments"`
-	Description           *string `json:"description"`
+	BaseEnvironmentId *string `json:"baseEnvironmentId"`
+	// Enable/disable pull request environments for PRs created by bots
+	BotPrEnvironments *bool   `json:"botPrEnvironments"`
+	Description       *string `json:"description"`
+	// Enable focused PR environments that only deploy services affected by changed files
 	FocusedPrEnvironments *bool   `json:"focusedPrEnvironments"`
 	IsPublic              *bool   `json:"isPublic"`
 	Name                  *string `json:"name"`
@@ -3390,9 +3838,7 @@ var AllPublicRuntime = []PublicRuntime{
 
 // Private Docker registry credentials. Only available for Pro plan deployments.
 type RegistryCredentialsInput struct {
-	// Private Docker registry credentials. Only available for Pro plan deployments.
 	Password string `json:"password"`
-	// Private Docker registry credentials. Only available for Pro plan deployments.
 	Username string `json:"username"`
 }
 
@@ -3520,9 +3966,12 @@ var AllRestartPolicyType = []RestartPolicyType{
 }
 
 type ServiceConnectInput struct {
+	// The branch to connect to. e.g. 'main'
 	Branch *string `json:"branch"`
-	Image  *string `json:"image"`
-	Repo   *string `json:"repo"`
+	// Name of the Dockerhub or GHCR image to connect this service to.
+	Image *string `json:"image"`
+	// The full name of the repo to connect to. e.g. 'railwayapp/starters'
+	Repo *string `json:"repo"`
 }
 
 // GetBranch returns ServiceConnectInput.Branch, and is useful for accessing the field via an interface.
@@ -3535,16 +3984,21 @@ func (v *ServiceConnectInput) GetImage() *string { return v.Image }
 func (v *ServiceConnectInput) GetRepo() *string { return v.Repo }
 
 type ServiceCreateInput struct {
-	Branch              *string                   `json:"branch"`
+	Branch *string `json:"branch"`
+	// Environment ID. If the specified environment is a fork, the service will only
+	// be created in it. Otherwise it will created in all environments that are not
+	// forks of other environments
 	EnvironmentId       *string                   `json:"environmentId"`
 	Icon                *string                   `json:"icon"`
 	Name                *string                   `json:"name"`
 	ProjectId           string                    `json:"projectId"`
 	RegistryCredentials *RegistryCredentialsInput `json:"registryCredentials"`
 	Source              *ServiceSourceInput       `json:"source"`
-	TemplateId          *string                   `json:"templateId"`
-	TemplateServiceId   *string                   `json:"templateServiceId"`
-	Variables           *map[string]string        `json:"variables"`
+	// Template ID. Required when templateServiceId is provided.
+	TemplateId *string `json:"templateId"`
+	// Template service ID within the template's serializedConfig. Required when templateId is provided.
+	TemplateServiceId *string            `json:"templateServiceId"`
+	Variables         *map[string]string `json:"variables"`
 }
 
 // GetBranch returns ServiceCreateInput.Branch, and is useful for accessing the field via an interface.
@@ -3703,10 +4157,15 @@ func (v *ServiceFields) GetDeletedAt() *string { return v.DeletedAt }
 
 // ServiceInstanceFields includes the GraphQL fields of ServiceInstance requested by the fragment ServiceInstanceFields.
 type ServiceInstanceFields struct {
-	Id                      string                                    `json:"id"`
-	EnvironmentId           string                                    `json:"environmentId"`
-	ServiceId               string                                    `json:"serviceId"`
-	ServiceName             string                                    `json:"serviceName"`
+	Id            string `json:"id"`
+	EnvironmentId string `json:"environmentId"`
+	ServiceId     string `json:"serviceId"`
+	ServiceName   string `json:"serviceName"`
+	// Whether any deployment was ever created for this service instance, including
+	// deployments that have since been removed. Distinguishes a service that was
+	// torn down (all deployments removed) from one that has never deployed —
+	// latestDeployment and activeDeployments are null/empty for both.
+	HasEverDeployed         bool                                      `json:"hasEverDeployed"`
 	BuildCommand            *string                                   `json:"buildCommand"`
 	Builder                 Builder                                   `json:"builder"`
 	DockerfilePath          *string                                   `json:"dockerfilePath"`
@@ -3741,6 +4200,9 @@ func (v *ServiceInstanceFields) GetServiceId() string { return v.ServiceId }
 
 // GetServiceName returns ServiceInstanceFields.ServiceName, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetServiceName() string { return v.ServiceName }
+
+// GetHasEverDeployed returns ServiceInstanceFields.HasEverDeployed, and is useful for accessing the field via an interface.
+func (v *ServiceInstanceFields) GetHasEverDeployed() bool { return v.HasEverDeployed }
 
 // GetBuildCommand returns ServiceInstanceFields.BuildCommand, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetBuildCommand() *string { return v.BuildCommand }
@@ -3835,10 +4297,12 @@ func (v *ServiceInstanceFieldsSourceServiceSource) GetImage() *string { return v
 func (v *ServiceInstanceFieldsSourceServiceSource) GetRepo() *string { return v.Repo }
 
 type ServiceInstanceLimitsUpdateInput struct {
-	EnvironmentId string   `json:"environmentId"`
-	MemoryGB      *float64 `json:"memoryGB"`
-	ServiceId     string   `json:"serviceId"`
-	VCPUs         *float64 `json:"vCPUs"`
+	EnvironmentId string `json:"environmentId"`
+	// Amount of memory in GB to allocate to the service instance
+	MemoryGB  *float64 `json:"memoryGB"`
+	ServiceId string   `json:"serviceId"`
+	// Number of vCPUs to allocate to the service instance
+	VCPUs *float64 `json:"vCPUs"`
 }
 
 // GetEnvironmentId returns ServiceInstanceLimitsUpdateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -3867,6 +4331,7 @@ type ServiceInstanceUpdateInput struct {
 	NumReplicas             *int                      `json:"numReplicas"`
 	OverlapSeconds          *int                      `json:"overlapSeconds"`
 	PreDeployCommand        []string                  `json:"preDeployCommand"`
+	PreDeployTimeoutSeconds *int                      `json:"preDeployTimeoutSeconds"`
 	RailwayConfigFile       *string                   `json:"railwayConfigFile"`
 	Region                  *string                   `json:"region"`
 	RegistryCredentials     *RegistryCredentialsInput `json:"registryCredentials"`
@@ -3919,6 +4384,11 @@ func (v *ServiceInstanceUpdateInput) GetOverlapSeconds() *int { return v.Overlap
 
 // GetPreDeployCommand returns ServiceInstanceUpdateInput.PreDeployCommand, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceUpdateInput) GetPreDeployCommand() []string { return v.PreDeployCommand }
+
+// GetPreDeployTimeoutSeconds returns ServiceInstanceUpdateInput.PreDeployTimeoutSeconds, and is useful for accessing the field via an interface.
+func (v *ServiceInstanceUpdateInput) GetPreDeployTimeoutSeconds() *int {
+	return v.PreDeployTimeoutSeconds
+}
 
 // GetRailwayConfigFile returns ServiceInstanceUpdateInput.RailwayConfigFile, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceUpdateInput) GetRailwayConfigFile() *string { return v.RailwayConfigFile }
@@ -4001,6 +4471,9 @@ func (v *UpdateBucketBucketUpdateBucket) GetCreatedAt() string { return v.Bucket
 // GetUpdatedAt returns UpdateBucketBucketUpdateBucket.UpdatedAt, and is useful for accessing the field via an interface.
 func (v *UpdateBucketBucketUpdateBucket) GetUpdatedAt() string { return v.BucketFields.UpdatedAt }
 
+// GetDeletedAt returns UpdateBucketBucketUpdateBucket.DeletedAt, and is useful for accessing the field via an interface.
+func (v *UpdateBucketBucketUpdateBucket) GetDeletedAt() *string { return v.BucketFields.DeletedAt }
+
 func (v *UpdateBucketBucketUpdateBucket) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -4038,6 +4511,8 @@ type __premarshalUpdateBucketBucketUpdateBucket struct {
 	CreatedAt string `json:"createdAt"`
 
 	UpdatedAt string `json:"updatedAt"`
+
+	DeletedAt *string `json:"deletedAt"`
 }
 
 func (v *UpdateBucketBucketUpdateBucket) MarshalJSON() ([]byte, error) {
@@ -4057,6 +4532,7 @@ func (v *UpdateBucketBucketUpdateBucket) __premarshalJSON() (*__premarshalUpdate
 	retval.GroupId = v.BucketFields.GroupId
 	retval.CreatedAt = v.BucketFields.CreatedAt
 	retval.UpdatedAt = v.BucketFields.UpdatedAt
+	retval.DeletedAt = v.BucketFields.DeletedAt
 	return &retval, nil
 }
 
@@ -4079,6 +4555,127 @@ type UpdateCustomDomainResponse struct {
 
 // GetCustomDomainUpdate returns UpdateCustomDomainResponse.CustomDomainUpdate, and is useful for accessing the field via an interface.
 func (v *UpdateCustomDomainResponse) GetCustomDomainUpdate() bool { return v.CustomDomainUpdate }
+
+// UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger includes the requested fields of the GraphQL type DeploymentTrigger.
+type UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger struct {
+	DeploymentTriggerFields `json:"-"`
+}
+
+// GetId returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.Id, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetId() string {
+	return v.DeploymentTriggerFields.Id
+}
+
+// GetBranch returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.Branch, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetBranch() string {
+	return v.DeploymentTriggerFields.Branch
+}
+
+// GetRepository returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.Repository, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetRepository() string {
+	return v.DeploymentTriggerFields.Repository
+}
+
+// GetProvider returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.Provider, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetProvider() string {
+	return v.DeploymentTriggerFields.Provider
+}
+
+// GetProjectId returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.ProjectId, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetProjectId() string {
+	return v.DeploymentTriggerFields.ProjectId
+}
+
+// GetEnvironmentId returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetEnvironmentId() string {
+	return v.DeploymentTriggerFields.EnvironmentId
+}
+
+// GetServiceId returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.ServiceId, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetServiceId() *string {
+	return v.DeploymentTriggerFields.ServiceId
+}
+
+// GetCheckSuites returns UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger.CheckSuites, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) GetCheckSuites() bool {
+	return v.DeploymentTriggerFields.CheckSuites
+}
+
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.DeploymentTriggerFields)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalUpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger struct {
+	Id string `json:"id"`
+
+	Branch string `json:"branch"`
+
+	Repository string `json:"repository"`
+
+	Provider string `json:"provider"`
+
+	ProjectId string `json:"projectId"`
+
+	EnvironmentId string `json:"environmentId"`
+
+	ServiceId *string `json:"serviceId"`
+
+	CheckSuites bool `json:"checkSuites"`
+}
+
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger) __premarshalJSON() (*__premarshalUpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger, error) {
+	var retval __premarshalUpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger
+
+	retval.Id = v.DeploymentTriggerFields.Id
+	retval.Branch = v.DeploymentTriggerFields.Branch
+	retval.Repository = v.DeploymentTriggerFields.Repository
+	retval.Provider = v.DeploymentTriggerFields.Provider
+	retval.ProjectId = v.DeploymentTriggerFields.ProjectId
+	retval.EnvironmentId = v.DeploymentTriggerFields.EnvironmentId
+	retval.ServiceId = v.DeploymentTriggerFields.ServiceId
+	retval.CheckSuites = v.DeploymentTriggerFields.CheckSuites
+	return &retval, nil
+}
+
+// UpdateDeploymentTriggerResponse is returned by UpdateDeploymentTrigger on success.
+type UpdateDeploymentTriggerResponse struct {
+	// Updates a deployment trigger.
+	DeploymentTriggerUpdate UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger `json:"deploymentTriggerUpdate"`
+}
+
+// GetDeploymentTriggerUpdate returns UpdateDeploymentTriggerResponse.DeploymentTriggerUpdate, and is useful for accessing the field via an interface.
+func (v *UpdateDeploymentTriggerResponse) GetDeploymentTriggerUpdate() UpdateDeploymentTriggerDeploymentTriggerUpdateDeploymentTrigger {
+	return v.DeploymentTriggerUpdate
+}
 
 // UpdateProjectProjectUpdateProject includes the requested fields of the GraphQL type Project.
 type UpdateProjectProjectUpdateProject struct {
@@ -4440,12 +5037,14 @@ type UpsertVariableResponse struct {
 func (v *UpsertVariableResponse) GetVariableUpsert() bool { return v.VariableUpsert }
 
 type VariableCollectionUpsertInput struct {
-	EnvironmentId string            `json:"environmentId"`
-	ProjectId     string            `json:"projectId"`
-	Replace       *bool             `json:"replace"`
-	ServiceId     *string           `json:"serviceId"`
-	SkipDeploys   *bool             `json:"skipDeploys"`
-	Variables     map[string]string `json:"variables"`
+	EnvironmentId string `json:"environmentId"`
+	ProjectId     string `json:"projectId"`
+	// When set to true, removes all existing variables before upserting the new collection.
+	Replace   *bool   `json:"replace"`
+	ServiceId *string `json:"serviceId"`
+	// Skip deploys for affected services
+	SkipDeploys *bool             `json:"skipDeploys"`
+	Variables   map[string]string `json:"variables"`
 }
 
 // GetEnvironmentId returns VariableCollectionUpsertInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4490,8 +5089,9 @@ type VariableUpsertInput struct {
 	Name          string  `json:"name"`
 	ProjectId     string  `json:"projectId"`
 	ServiceId     *string `json:"serviceId"`
-	SkipDeploys   *bool   `json:"skipDeploys"`
-	Value         string  `json:"value"`
+	// Skip deploys for affected services
+	SkipDeploys *bool  `json:"skipDeploys"`
+	Value       string `json:"value"`
 }
 
 // GetEnvironmentId returns VariableUpsertInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4513,11 +5113,17 @@ func (v *VariableUpsertInput) GetSkipDeploys() *bool { return v.SkipDeploys }
 func (v *VariableUpsertInput) GetValue() string { return v.Value }
 
 type VolumeCreateInput struct {
+	// The environment to deploy the volume instances into. If `null`, the volume
+	// will not be deployed to any environment. `undefined` will deploy to all environments.
 	EnvironmentId *string `json:"environmentId"`
-	MountPath     string  `json:"mountPath"`
-	ProjectId     string  `json:"projectId"`
-	Region        *string `json:"region"`
-	ServiceId     *string `json:"serviceId"`
+	// The path in the container to mount the volume to
+	MountPath string `json:"mountPath"`
+	// The project to create the volume in
+	ProjectId string `json:"projectId"`
+	// The region to create the volume instances in. If not provided, the default region will be used.
+	Region *string `json:"region"`
+	// The service to attach the volume to. If not provided, the volume will be disconnected.
+	ServiceId *string `json:"serviceId"`
 }
 
 // GetEnvironmentId returns VolumeCreateInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4600,9 +5206,12 @@ func (v *VolumeInstanceFields) GetDeletedAt() *string { return v.DeletedAt }
 func (v *VolumeInstanceFields) GetState() *VolumeState { return v.State }
 
 type VolumeInstanceUpdateInput struct {
-	MountPath *string      `json:"mountPath"`
-	ServiceId *string      `json:"serviceId"`
-	State     *VolumeState `json:"state"`
+	// The mount path of the volume instance. If not provided, the mount path will not be updated.
+	MountPath *string `json:"mountPath"`
+	// The service to attach the volume to. If not provided, the volume will be disconnected.
+	ServiceId *string `json:"serviceId"`
+	// The state of the volume instance. If not provided, the state will not be updated.
+	State *VolumeState `json:"state"`
 }
 
 // GetMountPath returns VolumeInstanceUpdateInput.MountPath, and is useful for accessing the field via an interface.
@@ -4639,6 +5248,7 @@ var AllVolumeState = []VolumeState{
 }
 
 type VolumeUpdateInput struct {
+	// The name of the volume
 	Name *string `json:"name"`
 }
 
@@ -4647,10 +5257,11 @@ func (v *VolumeUpdateInput) GetName() *string { return v.Name }
 
 // __ApplyEnvironmentChangeSetInput is used internally by genqlient
 type __ApplyEnvironmentChangeSetInput struct {
-	EnvironmentId  string          `json:"environmentId"`
-	Input          json.RawMessage `json:"input"`
-	CommitMessage  *string         `json:"commitMessage"`
-	BaseConfigEtag *string         `json:"baseConfigEtag"`
+	EnvironmentId     string          `json:"environmentId"`
+	Input             json.RawMessage `json:"input"`
+	CommitMessage     *string         `json:"commitMessage"`
+	BaseConfigEtag    *string         `json:"baseConfigEtag"`
+	WaitForCompletion *bool           `json:"waitForCompletion"`
 }
 
 // GetEnvironmentId returns __ApplyEnvironmentChangeSetInput.EnvironmentId, and is useful for accessing the field via an interface.
@@ -4664,6 +5275,9 @@ func (v *__ApplyEnvironmentChangeSetInput) GetCommitMessage() *string { return v
 
 // GetBaseConfigEtag returns __ApplyEnvironmentChangeSetInput.BaseConfigEtag, and is useful for accessing the field via an interface.
 func (v *__ApplyEnvironmentChangeSetInput) GetBaseConfigEtag() *string { return v.BaseConfigEtag }
+
+// GetWaitForCompletion returns __ApplyEnvironmentChangeSetInput.WaitForCompletion, and is useful for accessing the field via an interface.
+func (v *__ApplyEnvironmentChangeSetInput) GetWaitForCompletion() *bool { return v.WaitForCompletion }
 
 // __ConnectServiceInput is used internally by genqlient
 type __ConnectServiceInput struct {
@@ -4692,6 +5306,14 @@ type __CreateCustomDomainInput struct {
 
 // GetInput returns __CreateCustomDomainInput.Input, and is useful for accessing the field via an interface.
 func (v *__CreateCustomDomainInput) GetInput() CustomDomainCreateInput { return v.Input }
+
+// __CreateDeploymentTriggerInput is used internally by genqlient
+type __CreateDeploymentTriggerInput struct {
+	Input DeploymentTriggerCreateInput `json:"input"`
+}
+
+// GetInput returns __CreateDeploymentTriggerInput.Input, and is useful for accessing the field via an interface.
+func (v *__CreateDeploymentTriggerInput) GetInput() DeploymentTriggerCreateInput { return v.Input }
 
 // __CreateEnvironmentInput is used internally by genqlient
 type __CreateEnvironmentInput struct {
@@ -4740,6 +5362,14 @@ type __DeleteCustomDomainInput struct {
 
 // GetId returns __DeleteCustomDomainInput.Id, and is useful for accessing the field via an interface.
 func (v *__DeleteCustomDomainInput) GetId() string { return v.Id }
+
+// __DeleteDeploymentTriggerInput is used internally by genqlient
+type __DeleteDeploymentTriggerInput struct {
+	Id string `json:"id"`
+}
+
+// GetId returns __DeleteDeploymentTriggerInput.Id, and is useful for accessing the field via an interface.
+func (v *__DeleteDeploymentTriggerInput) GetId() string { return v.Id }
 
 // __DeleteEnvironmentInput is used internally by genqlient
 type __DeleteEnvironmentInput struct {
@@ -4793,6 +5423,34 @@ type __DeleteVolumeInput struct {
 // GetId returns __DeleteVolumeInput.Id, and is useful for accessing the field via an interface.
 func (v *__DeleteVolumeInput) GetId() string { return v.Id }
 
+// __GetBucketInstanceDetailsInput is used internally by genqlient
+type __GetBucketInstanceDetailsInput struct {
+	BucketId      string `json:"bucketId"`
+	EnvironmentId string `json:"environmentId"`
+}
+
+// GetBucketId returns __GetBucketInstanceDetailsInput.BucketId, and is useful for accessing the field via an interface.
+func (v *__GetBucketInstanceDetailsInput) GetBucketId() string { return v.BucketId }
+
+// GetEnvironmentId returns __GetBucketInstanceDetailsInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetBucketInstanceDetailsInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// __GetBucketS3CredentialsInput is used internally by genqlient
+type __GetBucketS3CredentialsInput struct {
+	BucketId      string `json:"bucketId"`
+	EnvironmentId string `json:"environmentId"`
+	ProjectId     string `json:"projectId"`
+}
+
+// GetBucketId returns __GetBucketS3CredentialsInput.BucketId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetBucketId() string { return v.BucketId }
+
+// GetEnvironmentId returns __GetBucketS3CredentialsInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetProjectId returns __GetBucketS3CredentialsInput.ProjectId, and is useful for accessing the field via an interface.
+func (v *__GetBucketS3CredentialsInput) GetProjectId() string { return v.ProjectId }
+
 // __GetDeploymentStatusInput is used internally by genqlient
 type __GetDeploymentStatusInput struct {
 	Id string `json:"id"`
@@ -4816,6 +5474,14 @@ type __GetEnvironmentInput struct {
 
 // GetId returns __GetEnvironmentInput.Id, and is useful for accessing the field via an interface.
 func (v *__GetEnvironmentInput) GetId() string { return v.Id }
+
+// __GetEnvironmentPrivateNetworksInput is used internally by genqlient
+type __GetEnvironmentPrivateNetworksInput struct {
+	EnvironmentId string `json:"environmentId"`
+}
+
+// GetEnvironmentId returns __GetEnvironmentPrivateNetworksInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetEnvironmentPrivateNetworksInput) GetEnvironmentId() string { return v.EnvironmentId }
 
 // __GetProjectInput is used internally by genqlient
 type __GetProjectInput struct {
@@ -4848,6 +5514,22 @@ func (v *__GetServiceInput) GetId() string { return v.Id }
 
 // GetEnvironmentId returns __GetServiceInput.EnvironmentId, and is useful for accessing the field via an interface.
 func (v *__GetServiceInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// __GetServicePrivateEndpointInput is used internally by genqlient
+type __GetServicePrivateEndpointInput struct {
+	EnvironmentId    string `json:"environmentId"`
+	PrivateNetworkId string `json:"privateNetworkId"`
+	ServiceId        string `json:"serviceId"`
+}
+
+// GetEnvironmentId returns __GetServicePrivateEndpointInput.EnvironmentId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetEnvironmentId() string { return v.EnvironmentId }
+
+// GetPrivateNetworkId returns __GetServicePrivateEndpointInput.PrivateNetworkId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetPrivateNetworkId() string { return v.PrivateNetworkId }
+
+// GetServiceId returns __GetServicePrivateEndpointInput.ServiceId, and is useful for accessing the field via an interface.
+func (v *__GetServicePrivateEndpointInput) GetServiceId() string { return v.ServiceId }
 
 // __ListDomainsInput is used internally by genqlient
 type __ListDomainsInput struct {
@@ -4965,6 +5647,18 @@ func (v *__UpdateCustomDomainInput) GetEnvironmentId() string { return v.Environ
 // GetTargetPort returns __UpdateCustomDomainInput.TargetPort, and is useful for accessing the field via an interface.
 func (v *__UpdateCustomDomainInput) GetTargetPort() *int { return v.TargetPort }
 
+// __UpdateDeploymentTriggerInput is used internally by genqlient
+type __UpdateDeploymentTriggerInput struct {
+	Id    string                       `json:"id"`
+	Input DeploymentTriggerUpdateInput `json:"input"`
+}
+
+// GetId returns __UpdateDeploymentTriggerInput.Id, and is useful for accessing the field via an interface.
+func (v *__UpdateDeploymentTriggerInput) GetId() string { return v.Id }
+
+// GetInput returns __UpdateDeploymentTriggerInput.Input, and is useful for accessing the field via an interface.
+func (v *__UpdateDeploymentTriggerInput) GetInput() DeploymentTriggerUpdateInput { return v.Input }
+
 // __UpdateProjectInput is used internally by genqlient
 type __UpdateProjectInput struct {
 	Id    string             `json:"id"`
@@ -5069,8 +5763,8 @@ func (v *__UpsertVariableInput) GetInput() VariableUpsertInput { return v.Input 
 
 // The mutation executed by ApplyEnvironmentChangeSet.
 const ApplyEnvironmentChangeSet_Operation = `
-mutation ApplyEnvironmentChangeSet ($environmentId: String!, $input: JSON!, $commitMessage: String, $baseConfigEtag: String) {
-	environmentApplyChangeSet(environmentId: $environmentId, input: $input, commitMessage: $commitMessage, baseConfigEtag: $baseConfigEtag) {
+mutation ApplyEnvironmentChangeSet ($environmentId: String!, $input: JSON!, $commitMessage: String, $baseConfigEtag: String, $waitForCompletion: Boolean) {
+	environmentApplyChangeSet(environmentId: $environmentId, input: $input, commitMessage: $commitMessage, baseConfigEtag: $baseConfigEtag, waitForCompletion: $waitForCompletion) {
 		id
 		status
 		deploymentId
@@ -5094,15 +5788,17 @@ func ApplyEnvironmentChangeSet(
 	input json.RawMessage,
 	commitMessage *string,
 	baseConfigEtag *string,
+	waitForCompletion *bool,
 ) (data_ *ApplyEnvironmentChangeSetResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ApplyEnvironmentChangeSet",
 		Query:  ApplyEnvironmentChangeSet_Operation,
 		Variables: &__ApplyEnvironmentChangeSetInput{
-			EnvironmentId:  environmentId,
-			Input:          input,
-			CommitMessage:  commitMessage,
-			BaseConfigEtag: baseConfigEtag,
+			EnvironmentId:     environmentId,
+			Input:             input,
+			CommitMessage:     commitMessage,
+			BaseConfigEtag:    baseConfigEtag,
+			WaitForCompletion: waitForCompletion,
 		},
 	}
 
@@ -5175,6 +5871,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 
@@ -5240,6 +5937,60 @@ func CreateCustomDomain(
 	}
 
 	data_ = &CreateCustomDomainResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateDeploymentTrigger.
+const CreateDeploymentTrigger_Operation = `
+mutation CreateDeploymentTrigger ($input: DeploymentTriggerCreateInput!) {
+	deploymentTriggerCreate(input: $input) {
+		... DeploymentTriggerFields
+	}
+}
+fragment DeploymentTriggerFields on DeploymentTrigger {
+	id
+	branch
+	repository
+	provider
+	projectId
+	environmentId
+	serviceId
+	checkSuites
+}
+`
+
+// THE THING THAT MAKES A GITHUB-SOURCED SERVICE ACTUALLY DEPLOY.
+//
+// **A SERVICE CAN HAVE A REPOSITORY ATTACHED AND STILL NEVER BUILD.** The
+// source tells Railway what the service is made of; the TRIGGER is what
+// connects a push on a branch to a deployment. Without one the service sits
+// with `latestDeployment: null` forever, and nothing in the Railway UI or the
+// API says why — it looks correctly configured, because it is, apart from this.
+//
+// Observed against a live account: four services with their sources correctly
+// attached, zero `repoTriggers` between them, and no deployment ever.
+func CreateDeploymentTrigger(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	input DeploymentTriggerCreateInput,
+) (data_ *CreateDeploymentTriggerResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateDeploymentTrigger",
+		Query:  CreateDeploymentTrigger_Operation,
+		Variables: &__CreateDeploymentTriggerInput{
+			Input: input,
+		},
+	}
+
+	data_ = &CreateDeploymentTriggerResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -5505,6 +6256,38 @@ func DeleteCustomDomain(
 	return data_, err_
 }
 
+// The mutation executed by DeleteDeploymentTrigger.
+const DeleteDeploymentTrigger_Operation = `
+mutation DeleteDeploymentTrigger ($id: String!) {
+	deploymentTriggerDelete(id: $id)
+}
+`
+
+func DeleteDeploymentTrigger(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+) (data_ *DeleteDeploymentTriggerResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "DeleteDeploymentTrigger",
+		Query:  DeleteDeploymentTrigger_Operation,
+		Variables: &__DeleteDeploymentTriggerInput{
+			Id: id,
+		},
+	}
+
+	data_ = &DeleteDeploymentTriggerResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by DeleteEnvironment.
 const DeleteEnvironment_Operation = `
 mutation DeleteEnvironment ($id: String!) {
@@ -5699,6 +6482,108 @@ func DeleteVolume(
 	return data_, err_
 }
 
+// The query executed by GetBucketInstanceDetails.
+const GetBucketInstanceDetails_Operation = `
+query GetBucketInstanceDetails ($bucketId: String!, $environmentId: String!) {
+	bucketInstanceDetails(bucketId: $bucketId, environmentId: $environmentId) {
+		objectCount
+		sizeBytes
+	}
+}
+`
+
+// HOW MUCH IS ACTUALLY IN THE BUCKET.
+//
+// No secrets, so this belongs in the ordinary `railway_bucket` data source.
+//
+// `objectCount` answers the question that governs whether destroying a bucket is
+// safe, and it was previously unanswerable through the provider — the decision
+// to let uat's media bucket be replaced had to be made by reasoning about how
+// recently it was created rather than by reading a count.
+func GetBucketInstanceDetails(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	bucketId string,
+	environmentId string,
+) (data_ *GetBucketInstanceDetailsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetBucketInstanceDetails",
+		Query:  GetBucketInstanceDetails_Operation,
+		Variables: &__GetBucketInstanceDetailsInput{
+			BucketId:      bucketId,
+			EnvironmentId: environmentId,
+		},
+	}
+
+	data_ = &GetBucketInstanceDetailsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetBucketS3Credentials.
+const GetBucketS3Credentials_Operation = `
+query GetBucketS3Credentials ($bucketId: String!, $environmentId: String!, $projectId: String!) {
+	bucketS3Credentials(bucketId: $bucketId, environmentId: $environmentId, projectId: $projectId) {
+		accessKeyId
+		secretAccessKey
+		bucketName
+		endpoint
+		region
+		urlStyle
+		createdAt
+	}
+}
+`
+
+// THE BUCKET'S REAL S3 CREDENTIALS.
+//
+// **These are SECRETS, and they are the reason `railway_bucket_credentials` is
+// an EPHEMERAL RESOURCE rather than a data source.** A data source writes its
+// result to state; this must never be written anywhere. Terraform 1.10+ keeps an
+// ephemeral result in memory for the duration of the operation and discards it.
+//
+// The `railway_bucket` resource deliberately exposes only reference
+// EXPRESSIONS — `${{uat-media.SECRET_ACCESS_KEY}}` — which Railway resolves at
+// deploy time. That stays the right default for wiring one Railway service to
+// one Railway bucket. This query is for the case a reference cannot serve: a
+// consumer OUTSIDE Railway, such as a local `terraform` run that must upload a
+// seed object, or a non-Railway system that reads the same bucket.
+func GetBucketS3Credentials(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	bucketId string,
+	environmentId string,
+	projectId string,
+) (data_ *GetBucketS3CredentialsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetBucketS3Credentials",
+		Query:  GetBucketS3Credentials_Operation,
+		Variables: &__GetBucketS3CredentialsInput{
+			BucketId:      bucketId,
+			EnvironmentId: environmentId,
+			ProjectId:     projectId,
+		},
+	}
+
+	data_ = &GetBucketS3CredentialsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by GetDeploymentStatus.
 const GetDeploymentStatus_Operation = `
 query GetDeploymentStatus ($id: String!) {
@@ -5814,6 +6699,55 @@ func GetEnvironmentConfiguration(
 	}
 
 	data_ = &GetEnvironmentConfigurationResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetEnvironmentPrivateNetworks.
+const GetEnvironmentPrivateNetworks_Operation = `
+query GetEnvironmentPrivateNetworks ($environmentId: String!) {
+	privateNetworks(environmentId: $environmentId) {
+		publicId
+		name
+		dnsName
+		networkId
+	}
+}
+`
+
+// THE PRIVATE NETWORK, AND THE ADDRESSES SERVICES ACTUALLY GET ON IT.
+//
+// **THIS IS THE ONLY WAY TO LEARN A SERVICE'S PRIVATE ADDRESS**, and it is a
+// question that comes up the moment anything outside Railway needs to reach in
+// — a Tailscale subnet router advertising the range, an operator debugging why
+// one service cannot see another, an ACL that has to name a destination.
+//
+// `privateIps` is EMPTY UNTIL SOMETHING IS RUNNING. The addresses are assigned
+// to containers, not to the service definition, so a service that has never
+// deployed has an endpoint with `syncStatus: ACTIVE` and no addresses. That is
+// a real state rather than an error, and the data source reports it as an empty
+// list rather than failing.
+func GetEnvironmentPrivateNetworks(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	environmentId string,
+) (data_ *GetEnvironmentPrivateNetworksResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetEnvironmentPrivateNetworks",
+		Query:  GetEnvironmentPrivateNetworks_Operation,
+		Variables: &__GetEnvironmentPrivateNetworksInput{
+			EnvironmentId: environmentId,
+		},
+	}
+
+	data_ = &GetEnvironmentPrivateNetworksResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -5961,6 +6895,8 @@ query GetService ($id: String!, $environmentId: String!) {
 					environmentId
 					branch
 					repository
+					provider
+					checkSuites
 				}
 			}
 		}
@@ -5989,6 +6925,7 @@ fragment ServiceInstanceFields on ServiceInstance {
 	environmentId
 	serviceId
 	serviceName
+	hasEverDeployed
 	buildCommand
 	builder
 	dockerfilePath
@@ -6035,6 +6972,46 @@ func GetService(
 	}
 
 	data_ = &GetServiceResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetServicePrivateEndpoint.
+const GetServicePrivateEndpoint_Operation = `
+query GetServicePrivateEndpoint ($environmentId: String!, $privateNetworkId: String!, $serviceId: String!) {
+	privateNetworkEndpoint(environmentId: $environmentId, privateNetworkId: $privateNetworkId, serviceId: $serviceId) {
+		dnsName
+		privateIps
+		syncStatus
+	}
+}
+`
+
+func GetServicePrivateEndpoint(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	environmentId string,
+	privateNetworkId string,
+	serviceId string,
+) (data_ *GetServicePrivateEndpointResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetServicePrivateEndpoint",
+		Query:  GetServicePrivateEndpoint_Operation,
+		Variables: &__GetServicePrivateEndpointInput{
+			EnvironmentId:    environmentId,
+			PrivateNetworkId: privateNetworkId,
+			ServiceId:        serviceId,
+		},
+	}
+
+	data_ = &GetServicePrivateEndpointResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -6180,6 +7157,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 
@@ -6446,6 +7424,7 @@ fragment BucketFields on Bucket {
 	groupId
 	createdAt
 	updatedAt
+	deletedAt
 }
 `
 
@@ -6501,6 +7480,52 @@ func UpdateCustomDomain(
 	}
 
 	data_ = &UpdateCustomDomainResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by UpdateDeploymentTrigger.
+const UpdateDeploymentTrigger_Operation = `
+mutation UpdateDeploymentTrigger ($id: String!, $input: DeploymentTriggerUpdateInput!) {
+	deploymentTriggerUpdate(id: $id, input: $input) {
+		... DeploymentTriggerFields
+	}
+}
+fragment DeploymentTriggerFields on DeploymentTrigger {
+	id
+	branch
+	repository
+	provider
+	projectId
+	environmentId
+	serviceId
+	checkSuites
+}
+`
+
+func UpdateDeploymentTrigger(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	input DeploymentTriggerUpdateInput,
+) (data_ *UpdateDeploymentTriggerResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateDeploymentTrigger",
+		Query:  UpdateDeploymentTrigger_Operation,
+		Variables: &__UpdateDeploymentTriggerInput{
+			Id:    id,
+			Input: input,
+		},
+	}
+
+	data_ = &UpdateDeploymentTriggerResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

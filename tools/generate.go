@@ -2,4 +2,8 @@
 
 package tools
 
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-dir .. --provider-name railway
+// Docs generation lives in `generate.sh`, which explains why it cannot be a
+// single `tfplugindocs` invocation: this provider is not under the `hashicorp/`
+// namespace, and `tfplugindocs` assumes it is.
+//
+//go:generate ./generate.sh

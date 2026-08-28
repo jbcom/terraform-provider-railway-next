@@ -74,6 +74,20 @@ func applyEnvironmentChangeSet(
 			return nil, err
 		}
 		etag := environment.Environment.ConfigEtag
+		// **WAIT FOR THE CHANGE SET TO BE APPLIED, NOT MERELY QUEUED.**
+		//
+		// Railway returns from this mutation as soon as the change set is
+		// accepted unless it is told otherwise, and every resource built on
+		// change sets was silently relying on that acceptance meaning
+		// completion. It does not. A bucket delete returned success and left
+		// the bucket registered with `deletedAt` null: Terraform recorded the
+		// resource as destroyed while Railway still had it, and the next apply
+		// failed with `Railway bucket name already exists` against a bucket no
+		// configuration owned.
+		//
+		// The ambient context still bounds this, so the practitioner's
+		// `timeouts` block remains the ceiling.
+		waitForCompletion := true
 		applied, err := railway.ApplyEnvironmentChangeSet(
 			ctx,
 			graphqlClient,
@@ -81,6 +95,7 @@ func applyEnvironmentChangeSet(
 			payload,
 			&message,
 			&etag,
+			&waitForCompletion,
 		)
 		if err == nil {
 			return applied, nil

@@ -17,6 +17,8 @@ type Bucket struct{ client *client.Client }
 
 type bucketModel struct {
 	ID            types.String `tfsdk:"id"`
+	ObjectCount   types.Int64  `tfsdk:"object_count"`
+	SizeBytes     types.Int64  `tfsdk:"size_bytes"`
 	ProjectID     types.String `tfsdk:"project_id"`
 	EnvironmentID types.String `tfsdk:"environment_id"`
 	Name          types.String `tfsdk:"name"`
@@ -38,6 +40,22 @@ func (d *Bucket) Schema(_ context.Context, _ datasource.SchemaRequest, resp *dat
 		"name":           schema.StringAttribute{Optional: true, Computed: true},
 		"region":         schema.StringAttribute{Computed: true},
 		"references":     schema.MapAttribute{Computed: true, ElementType: types.StringType},
+
+		// **WHAT IS ACTUALLY IN THE BUCKET.** No secrets, so this belongs on
+		// the data source rather than in the ephemeral credentials resource.
+		//
+		// `object_count` answers the question that governs whether destroying
+		// or replacing a bucket is safe, and it was previously unanswerable
+		// through the provider at all — the decision had to be made by
+		// reasoning about how recently the bucket was created.
+		"object_count": schema.Int64Attribute{
+			Computed:            true,
+			MarkdownDescription: "Number of objects currently stored in this bucket in this environment.",
+		},
+		"size_bytes": schema.Int64Attribute{
+			Computed:            true,
+			MarkdownDescription: "Total size in bytes of the objects stored in this bucket in this environment.",
+		},
 	}}
 }
 
@@ -85,5 +103,24 @@ func (d *Bucket) Read(ctx context.Context, req datasource.ReadRequest, resp *dat
 	}
 	config.Region = types.StringValue(opaque.Buckets[config.ID.ValueString()].Region)
 	config.References, _ = types.MapValueFrom(ctx, types.StringType, references.Bucket(config.Name.ValueString()))
+
+	details, err := railway.GetBucketInstanceDetails(
+		ctx,
+		d.client.GraphQL(),
+		config.ID.ValueString(),
+		config.EnvironmentID.ValueString(),
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read Railway bucket contents", client.DecodeAPIError(err).Error())
+		return
+	}
+	// Railway types these as `BigInt`, which arrives as a STRING — a count that
+	// can exceed what JSON numbers represent exactly. Parsed rather than cast.
+	config.ObjectCount = bigIntValue(details.BucketInstanceDetails.ObjectCount, "object_count", &resp.Diagnostics)
+	config.SizeBytes = bigIntValue(details.BucketInstanceDetails.SizeBytes, "size_bytes", &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 }

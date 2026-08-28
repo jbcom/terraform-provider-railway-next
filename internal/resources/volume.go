@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
@@ -54,8 +55,8 @@ func (r *Volume) Schema(ctx context.Context, _ resource.SchemaRequest, resp *res
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway persistent volume. Destroying this resource destroys persistent data. Mutable mount or service changes update the volume instance and do not silently recreate the volume.",
 		Attributes: map[string]schema.Attribute{
-			"id":                 schema.StringAttribute{Computed: true},
-			"volume_instance_id": schema.StringAttribute{Computed: true},
+			"id":                 idAttribute("Railway volume ID."),
+			"volume_instance_id": idAttribute("Railway volume instance ID for this environment."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -116,12 +117,32 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		return
 	}
 	plan.ID = types.StringValue(result.VolumeCreate.Id)
+
+	// The volume exists in Railway now. Every failure below must still record
+	// it — a volume Terraform has lost track of is a disk that cannot be
+	// resized, renamed or destroyed through the provider, and it keeps costing
+	// money while being invisible to the configuration that created it.
+	saveState := func() {
+		// EVERY VALUE MUST BE KNOWN when state is written — see
+		// `ResolveUnknowns`. On a failure path the refresh has not run, so the
+		// plan's unknowns would otherwise reach state and Terraform would
+		// reject the apply result.
+		ResolveUnknowns(&plan)
+		ResolveUnknowns(&plan)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	}
+
 	if plan.Name.ValueString() != result.VolumeCreate.Name {
 		updated, updateErr := railway.UpdateVolume(ctx, r.client.GraphQL(), plan.ID.ValueString(), railway.VolumeUpdateInput{
 			Name: stringPointer(plan.Name),
 		})
 		if updateErr != nil {
+			// SAVE THE NAME RAILWAY ACTUALLY GAVE IT, not the one that was
+			// asked for. Recording the requested name would make the next plan
+			// see no drift and never retry the rename.
+			plan.Name = types.StringValue(result.VolumeCreate.Name)
 			resp.Diagnostics.AddError("Railway volume created but naming failed", client.DecodeAPIError(updateErr).Error())
+			saveState()
 			return
 		}
 		plan.Name = types.StringValue(updated.VolumeUpdate.Name)
@@ -133,9 +154,10 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
 		}
 		resp.Diagnostics.AddError("Unable to confirm Railway volume creation", detail)
+		saveState()
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	saveState()
 }
 
 func (r *Volume) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -202,6 +224,7 @@ func (r *Volume) Update(ctx context.Context, req resource.UpdateRequest, resp *r
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -300,29 +323,26 @@ func (r *Volume) waitForVolumeInstance(
 	state *volumeModel,
 	interval time.Duration,
 ) (bool, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
+	// The ceiling is the CALLER'S timeout — see `awaitConsistency`.
+	err := awaitConsistency(ctx, interval, func(ctx context.Context) error {
 		candidate := *state
-		found, err := r.readRemote(waitCtx, &candidate)
-		if err == nil && found {
-			*state = candidate
-			return true, nil
-		}
+		found, err := r.readRemote(ctx, &candidate)
 		if err != nil {
-			lastErr = err
+			return err
 		}
-		select {
-		case <-waitCtx.Done():
-			if lastErr != nil {
-				return false, lastErr
-			}
+		if !found {
+			return errNotReady
+		}
+		*state = candidate
+		return nil
+	})
+	if err != nil {
+		// A timeout means "not there yet", which this signature reports as
+		// `false, nil` — the caller decides whether that is fatal.
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return false, nil
-		case <-ticker.C:
 		}
+		return false, err
 	}
+	return true, nil
 }

@@ -112,13 +112,30 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch request.OperationName {
 	case "CreateService":
+		// THE SOURCE IS ATTACHED BY THE CREATE ITSELF now, matching Railway's
+		// own API cookbook — `ServiceCreateInput` carries `source` and
+		// `branch`, and the provider no longer makes a second `serviceConnect`
+		// call. The fixture has to model that, or it reports a service with no
+		// source and the plan never converges.
 		f.exists = true
+		if variables, ok := request.Variables["input"].(map[string]any); ok {
+			if _, hasSource := variables["source"]; hasSource {
+				f.connected = true
+			}
+		}
 		writeServiceMutation(w, "serviceCreate")
 	case "ConnectService":
 		f.connected = true
 		writeServiceMutation(w, "serviceConnect")
 	case "UpdateServiceInstance":
 		_, _ = io.WriteString(w, `{"data":{"serviceInstanceUpdate":true}}`)
+	case "GetEnvironmentPrivateNetworks":
+		// **THE FIXTURE REPORTS NO PRIVATE NETWORK**, which is a real state:
+		// private networking can be disabled. `privatenet.Read` treats
+		// anything other than exactly one network as "no address to report"
+		// rather than an error, so this exercises that path.
+		_, _ = io.WriteString(w, `{"data":{"privateNetworks":[]}}`)
+
 	case "GetService":
 		if !f.exists {
 			_, _ = io.WriteString(w, `{"errors":[{"message":"not found","extensions":{"code":"NOT_FOUND"}}]}`)
@@ -127,7 +144,7 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.getServiceCalls++
 		repoTriggers := []any{}
 		var source any
-		if f.connected && f.getServiceCalls > 1 {
+		if f.connected {
 			repoTriggers = []any{map[string]any{
 				"node": map[string]any{
 					"id": "trigger-fixture", "environmentId": "environment-fixture",

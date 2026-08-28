@@ -52,7 +52,7 @@ func (r *ServiceDomain) Schema(ctx context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A Railway-generated/requested service domain or custom domain.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
+			"id": idAttribute("Railway service domain ID."),
 			"project_id": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -144,6 +144,10 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 		plan.ID = types.StringValue(result.ServiceDomainCreate.Id)
 		plan.Domain = types.StringValue(result.ServiceDomainCreate.Domain)
+
+		// The domain exists now. A domain Terraform has lost track of is
+		// serving traffic that no configuration describes — and for a custom
+		// domain it also holds the name, so the next apply cannot recreate it.
 		if !plan.Subdomain.IsNull() && !plan.Subdomain.IsUnknown() {
 			_, err = railway.UpdateServiceDomain(ctx, r.client.GraphQL(), railway.ServiceDomainUpdateInput{
 				ServiceDomainId: plan.ID.ValueString(),
@@ -154,14 +158,18 @@ func (r *ServiceDomain) Create(ctx context.Context, req resource.CreateRequest, 
 			})
 			if err != nil {
 				resp.Diagnostics.AddError("Railway domain created but requested subdomain failed", client.DecodeAPIError(err).Error())
+				ResolveUnknowns(&plan)
+				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 				return
 			}
 		}
 	}
-	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
+	refreshed := r.refresh(ctx, &plan, &resp.Diagnostics)
+	ResolveUnknowns(&plan)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if !refreshed {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *ServiceDomain) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -226,6 +234,7 @@ func (r *ServiceDomain) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !r.refresh(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
+	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
