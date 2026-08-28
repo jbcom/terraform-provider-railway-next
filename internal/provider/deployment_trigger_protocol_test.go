@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 // TestDeploymentTriggerImportRoundTrips is the property an import has to have
@@ -85,13 +86,98 @@ resource "railway_deployment_trigger" "web" {
 	})
 }
 
+// TestDeploymentTriggerImportedCheckSuitesUpdatesInPlace reproduces the live
+// Objexiv recovery path: import a trigger whose check suites are disabled, then
+// enable them in configuration. provider_name must be restored by Read so the
+// plan reaches Update instead of replacing the trigger.
+func TestDeploymentTriggerImportedCheckSuitesUpdatesInPlace(t *testing.T) {
+	fixture := &deploymentTriggerFixture{
+		exists:  true,
+		id:      "trigger-fixture",
+		branch:  "uat",
+		checked: false,
+	}
+	server := httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
+	defer server.Close()
+
+	config := func(checkSuites bool) string {
+		return fmt.Sprintf(`
+provider "railway" {
+  token            = "fixture-token"
+  token_type       = "account"
+  graphql_endpoint = %q
+}
+
+resource "railway_deployment_trigger" "web" {
+  project_id     = "project-fixture"
+  environment_id = "environment-fixture"
+  service_id     = "service-fixture"
+  repository     = "owner/repository"
+  branch         = "uat"
+  check_suites   = %t
+}
+`, server.URL, checkSuites)
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"railway": providerserver.NewProtocol6WithError(New("test")()),
+		},
+		Steps: []resource.TestStep{
+			{
+				ResourceName:       "railway_deployment_trigger.web",
+				ImportState:        true,
+				ImportStateId:      "project-fixture/environment-fixture/service-fixture/trigger-fixture",
+				ImportStatePersist: true,
+				Config:             config(false),
+			},
+			{
+				Config: config(true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("railway_deployment_trigger.web", "id", "trigger-fixture"),
+					resource.TestCheckResourceAttr("railway_deployment_trigger.web", "provider_name", "github"),
+					resource.TestCheckResourceAttr("railway_deployment_trigger.web", "check_suites", "true"),
+					fixture.checkMutationCounts(0, 1, 0),
+				),
+			},
+		},
+	})
+}
+
 // deploymentTriggerFixture is a Railway that stores one trigger and reports it
 // through the service, which is the only way a trigger can be read.
 type deploymentTriggerFixture struct {
-	mu      sync.Mutex
-	exists  bool
-	branch  string
-	checked bool
+	mu          sync.Mutex
+	exists      bool
+	id          string
+	branch      string
+	checked     bool
+	createCalls int
+	updateCalls int
+	deleteCalls int
+}
+
+func (f *deploymentTriggerFixture) checkMutationCounts(
+	creates int,
+	updates int,
+	deletes int,
+) resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.createCalls != creates || f.updateCalls != updates || f.deleteCalls != deletes {
+			return fmt.Errorf(
+				"unexpected deployment trigger mutations: create=%d update=%d delete=%d; want %d/%d/%d",
+				f.createCalls,
+				f.updateCalls,
+				f.deleteCalls,
+				creates,
+				updates,
+				deletes,
+			)
+		}
+		return nil
+	}
 }
 
 func (f *deploymentTriggerFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -110,8 +196,12 @@ func (f *deploymentTriggerFixture) serveHTTP(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 
 	trigger := func() map[string]any {
+		id := f.id
+		if id == "" {
+			id = "trigger-fixture"
+		}
 		return map[string]any{
-			"id":            "trigger-fixture",
+			"id":            id,
 			"branch":        f.branch,
 			"repository":    "owner/repository",
 			"provider":      "github",
@@ -126,6 +216,10 @@ func (f *deploymentTriggerFixture) serveHTTP(w http.ResponseWriter, r *http.Requ
 	case "CreateDeploymentTrigger":
 		input, _ := request.Variables["input"].(map[string]any)
 		f.exists = true
+		f.createCalls++
+		if f.id == "" {
+			f.id = "trigger-fixture"
+		}
 		f.branch, _ = input["branch"].(string)
 		f.checked, _ = input["checkSuites"].(bool)
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -156,8 +250,22 @@ func (f *deploymentTriggerFixture) serveHTTP(w http.ResponseWriter, r *http.Requ
 			},
 		}})
 
+	case "UpdateDeploymentTrigger":
+		input, _ := request.Variables["input"].(map[string]any)
+		f.updateCalls++
+		if branch, ok := input["branch"].(string); ok {
+			f.branch = branch
+		}
+		if checked, ok := input["checkSuites"].(bool); ok {
+			f.checked = checked
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"deploymentTriggerUpdate": trigger()},
+		})
+
 	case "DeleteDeploymentTrigger":
 		f.exists = false
+		f.deleteCalls++
 		_, _ = io.WriteString(w, `{"data":{"deploymentTriggerDelete":true}}`)
 
 	default:

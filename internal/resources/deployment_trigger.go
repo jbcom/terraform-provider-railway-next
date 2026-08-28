@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	railway "github.com/micah5/terraform-provider-railway-next/graphql"
@@ -118,6 +119,7 @@ func (r *DeploymentTrigger) Schema(
 			"provider_name": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				Default:  stringdefault.StaticString("github"),
 				// `provider` IS RESERVED IN HCL, hence `provider_name`. Naming
 				// the attribute `provider` makes the block unparseable.
 				MarkdownDescription: "Source control provider. Defaults to `github`.",
@@ -235,6 +237,10 @@ func (r *DeploymentTrigger) Read(
 	}
 
 	// The service exists and no longer carries this trigger, so it is gone.
+	// Do not adopt another trigger by mutable fields: Railway exposes no
+	// immutable replacement signal, so doing so could make two Terraform
+	// addresses own the same remote object. A replacement must be explicitly
+	// imported by its new id.
 	resp.State.RemoveResource(ctx)
 }
 
@@ -327,6 +333,9 @@ func setDeploymentTriggerState(state *deploymentTriggerModel, remote railway.Dep
 	state.ID = types.StringValue(remote.Id)
 	state.Branch = types.StringValue(remote.Branch)
 	state.Repository = types.StringValue(remote.Repository)
+	// EVERY FIELD, so an IMPORT round-trips. Leaving these unset made an
+	// imported trigger plan as a replacement, because `provider_name` forces
+	// replacement and a field the read never fills always looks changed.
 	state.Provider = types.StringValue(remote.Provider)
 	state.CheckSuites = types.BoolValue(remote.CheckSuites)
 }
