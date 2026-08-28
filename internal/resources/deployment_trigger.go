@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	railway "github.com/micah5/terraform-provider-railway-next/graphql"
@@ -57,6 +58,14 @@ type deploymentTriggerModel struct {
 	Provider      types.String   `tfsdk:"provider_name"`
 	CheckSuites   types.Bool     `tfsdk:"check_suites"`
 	Timeouts      timeouts.Value `tfsdk:"timeouts"`
+}
+
+type deploymentTriggerStateSource interface {
+	GetId() string
+	GetBranch() string
+	GetRepository() string
+	GetProvider() string
+	GetCheckSuites() bool
 }
 
 func NewDeploymentTrigger() resource.Resource { return &DeploymentTrigger{} }
@@ -118,6 +127,7 @@ func (r *DeploymentTrigger) Schema(
 			"provider_name": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				Default:  stringdefault.StaticString("github"),
 				// `provider` IS RESERVED IN HCL, hence `provider_name`. Naming
 				// the attribute `provider` makes the block unparseable.
 				MarkdownDescription: "Source control provider. Defaults to `github`.",
@@ -183,7 +193,7 @@ func (r *DeploymentTrigger) Create(
 		return
 	}
 
-	setDeploymentTriggerState(&plan, result.DeploymentTriggerCreate.DeploymentTriggerFields)
+	setDeploymentTriggerState(&plan, &result.DeploymentTriggerCreate.DeploymentTriggerFields)
 	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -218,24 +228,53 @@ func (r *DeploymentTrigger) Read(
 		return
 	}
 
-	for _, edge := range result.Service.RepoTriggers.Edges {
-		if edge.Node.Id != state.ID.ValueString() {
-			continue
+	var semanticMatches []deploymentTriggerStateSource
+	for i := range result.Service.RepoTriggers.Edges {
+		remote := &result.Service.RepoTriggers.Edges[i].Node
+		if remote.GetId() == state.ID.ValueString() {
+			setDeploymentTriggerState(&state, remote)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
 		}
-		state.Branch = types.StringValue(edge.Node.Branch)
-		state.Repository = types.StringValue(edge.Node.Repository)
-		// EVERY FIELD, so an IMPORT round-trips. Leaving these unset made an
-		// imported trigger plan as a replacement, because `provider_name`
-		// forces replacement and a field the read never fills always looks
-		// changed.
-		state.Provider = types.StringValue(edge.Node.Provider)
-		state.CheckSuites = types.BoolValue(edge.Node.CheckSuites)
+
+		// Railway sometimes replaces a deployment trigger and therefore its
+		// identifier without changing the subscription it represents. The
+		// service query already scopes service_id; environment, repository and
+		// branch complete the resource's semantic identity. Only adopt an exact,
+		// unique match: choosing between duplicates would make state ownership
+		// depend on API ordering.
+		if deploymentTriggerSemanticallyMatches(state, remote.GetEnvironmentId(), remote) {
+			semanticMatches = append(semanticMatches, remote)
+		}
+	}
+
+	if len(semanticMatches) == 1 {
+		setDeploymentTriggerState(&state, semanticMatches[0])
 		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		return
 	}
 
-	// The service exists and no longer carries this trigger, so it is gone.
+	// The service exists and carries neither the original trigger nor one
+	// unique trigger with the same semantic identity, so it is gone. Ambiguous
+	// matches intentionally remain unmanaged rather than being selected by API
+	// ordering.
 	resp.State.RemoveResource(ctx)
+}
+
+func deploymentTriggerSemanticallyMatches(
+	state deploymentTriggerModel,
+	environmentID string,
+	remote deploymentTriggerStateSource,
+) bool {
+	if state.EnvironmentID.IsNull() || state.EnvironmentID.IsUnknown() ||
+		state.Repository.IsNull() || state.Repository.IsUnknown() ||
+		state.Branch.IsNull() || state.Branch.IsUnknown() {
+		return false
+	}
+
+	return environmentID == state.EnvironmentID.ValueString() &&
+		remote.GetRepository() == state.Repository.ValueString() &&
+		remote.GetBranch() == state.Branch.ValueString()
 }
 
 func (r *DeploymentTrigger) Update(
@@ -273,7 +312,7 @@ func (r *DeploymentTrigger) Update(
 		return
 	}
 
-	setDeploymentTriggerState(&plan, result.DeploymentTriggerUpdate.DeploymentTriggerFields)
+	setDeploymentTriggerState(&plan, &result.DeploymentTriggerUpdate.DeploymentTriggerFields)
 	ResolveUnknowns(&plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -323,10 +362,13 @@ func (r *DeploymentTrigger) ImportState(
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, pathRoot("id"), parts[3])...)
 }
 
-func setDeploymentTriggerState(state *deploymentTriggerModel, remote railway.DeploymentTriggerFields) {
-	state.ID = types.StringValue(remote.Id)
-	state.Branch = types.StringValue(remote.Branch)
-	state.Repository = types.StringValue(remote.Repository)
-	state.Provider = types.StringValue(remote.Provider)
-	state.CheckSuites = types.BoolValue(remote.CheckSuites)
+func setDeploymentTriggerState(state *deploymentTriggerModel, remote deploymentTriggerStateSource) {
+	state.ID = types.StringValue(remote.GetId())
+	state.Branch = types.StringValue(remote.GetBranch())
+	state.Repository = types.StringValue(remote.GetRepository())
+	// EVERY FIELD, so an IMPORT round-trips. Leaving these unset made an
+	// imported trigger plan as a replacement, because `provider_name` forces
+	// replacement and a field the read never fills always looks changed.
+	state.Provider = types.StringValue(remote.GetProvider())
+	state.CheckSuites = types.BoolValue(remote.GetCheckSuites())
 }
