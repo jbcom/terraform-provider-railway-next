@@ -62,6 +62,21 @@ func Read(
 		return Endpoint{}
 	}
 
+	// **A SERVICE CAN HAVE NO ENDPOINT, AND RAILWAY REPORTS THAT AS NULL
+	// RATHER THAN AS AN ERROR.**
+	//
+	// Dereferencing it crashed the provider with a SIGSEGV during `import` —
+	// the resource is being read before Railway has attached it to the private
+	// network, so `privateNetworkEndpoint` is null and `err` is nil.
+	//
+	// A crash is the worst possible reporting of "not yet": it takes the whole
+	// provider process down, so the operation that triggered it and every other
+	// resource in the same walk fail together, with a stack trace instead of a
+	// diagnostic.
+	if endpoint.PrivateNetworkEndpoint == nil {
+		return Endpoint{}
+	}
+
 	return Endpoint{
 		DNSName: endpoint.PrivateNetworkEndpoint.DnsName,
 		IPs:     endpoint.PrivateNetworkEndpoint.PrivateIps,

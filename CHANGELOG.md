@@ -23,6 +23,12 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   was not set during `Configure`, so the client was nil and the provider crashed
   with a SIGSEGV rather than raising a diagnostic. Both are fixed: the field is
   assigned, and a nil client is reported as an error.
+- **A service with no private-network endpoint crashed the provider.** Railway
+  reports "not attached yet" as `privateNetworkEndpoint: null` with no error,
+  so dereferencing the result took the whole provider process down with a
+  SIGSEGV during a plain `terraform import` — the triggering operation and
+  every other resource in the same graph walk failing together, with a Go stack
+  trace instead of a diagnostic.
 - **`BigInt` was bound to `string` while Railway sends a JSON number**, so every
   read of a `BigInt` field failed with `cannot unmarshal number into Go struct
   field ... of type string`. It is now `json.Number`, which accepts either form
