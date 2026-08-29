@@ -43,6 +43,7 @@ resource "railway_service" "api" {
 - `build_command` (String) Custom build command.
 - `builder` (String)
 - `config_path` (String) Railway configuration file path.
+- `cron_schedule` (String) Cron expression that schedules this service.
 - `dockerfile_path` (String) Dockerfile path.
 - `draining_seconds` (Number) Connection draining duration.
 - `healthcheck_path` (String) HTTP health-check path.

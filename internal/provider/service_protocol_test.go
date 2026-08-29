@@ -74,6 +74,58 @@ resource "railway_service" "api" {
 	})
 }
 
+// TestServiceProtocolCronScheduleRoundTrip proves cron_schedule is sent with
+// serviceInstanceUpdate and restored from ServiceInstance on the following
+// read. That second half matters: accepting the argument alone would leave a
+// perpetual diff after the first apply.
+func TestServiceProtocolCronScheduleRoundTrip(t *testing.T) {
+	var fixture serviceFixture
+	server := httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
+	defer server.Close()
+
+	config := fmt.Sprintf(`
+provider "railway" {
+  token            = "fixture-token"
+  token_type       = "account"
+  graphql_endpoint = %q
+}
+
+resource "railway_service" "scheduled" {
+  project_id     = "project-fixture"
+  environment_id = "environment-fixture"
+  name           = "scheduled"
+  source_type    = "empty"
+  cron_schedule  = "0 6 * * *"
+}
+`, server.URL)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"railway": providerserver.NewProtocol6WithError(New("test")()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("railway_service.scheduled", "cron_schedule", "0 6 * * *"),
+					func(_ *terraform.State) error {
+						fixture.mu.Lock()
+						defer fixture.mu.Unlock()
+						if fixture.cronSchedule != "0 6 * * *" {
+							return fmt.Errorf("cron schedule sent to Railway = %q", fixture.cronSchedule)
+						}
+						return nil
+					},
+				),
+			},
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func checkNoUnknownState(name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		instance, ok := state.RootModule().Resources[name]
@@ -93,6 +145,8 @@ type serviceFixture struct {
 	mu              sync.Mutex
 	exists          bool
 	connected       bool
+	cronSchedule    string
+	serviceName     string
 	getServiceCalls int
 }
 
@@ -119,7 +173,10 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// source and the plan never converges.
 		f.exists = true
 		if variables, ok := request.Variables["input"].(map[string]any); ok {
-			if _, hasSource := variables["source"]; hasSource {
+			if name, ok := variables["name"].(string); ok {
+				f.serviceName = name
+			}
+			if source, hasSource := variables["source"]; hasSource && source != nil {
 				f.connected = true
 			}
 		}
@@ -128,6 +185,13 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		f.connected = true
 		writeServiceMutation(w, "serviceConnect")
 	case "UpdateServiceInstance":
+		if variables, ok := request.Variables["input"].(map[string]any); ok {
+			if cronSchedule, exists := variables["cronSchedule"]; exists && cronSchedule != nil {
+				if value, ok := cronSchedule.(string); ok {
+					f.cronSchedule = value
+				}
+			}
+		}
 		_, _ = io.WriteString(w, `{"data":{"serviceInstanceUpdate":true}}`)
 	case "GetEnvironmentPrivateNetworks":
 		// **THE FIXTURE REPORTS NO PRIVATE NETWORK**, which is a real state:
@@ -142,6 +206,14 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.getServiceCalls++
+		var cronSchedule any
+		if f.cronSchedule != "" {
+			cronSchedule = f.cronSchedule
+		}
+		serviceName := f.serviceName
+		if serviceName == "" {
+			serviceName = "api"
+		}
 		repoTriggers := []any{}
 		var source any
 		if f.connected {
@@ -155,7 +227,7 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
 			"service": map[string]any{
-				"id": "service-fixture", "name": "api", "projectId": "project-fixture",
+				"id": "service-fixture", "name": serviceName, "projectId": "project-fixture",
 				"icon": nil, "deletedAt": nil,
 				"repoTriggers": map[string]any{"edges": repoTriggers},
 			},
@@ -170,8 +242,8 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 				"serviceInstances": map[string]any{"edges": []any{map[string]any{
 					"node": map[string]any{
 						"id": "instance-fixture", "environmentId": "environment-fixture",
-						"serviceId": "service-fixture", "serviceName": "api",
-						"buildCommand": nil, "builder": "RAILPACK", "dockerfilePath": nil,
+						"serviceId": "service-fixture", "serviceName": serviceName,
+						"buildCommand": nil, "builder": "RAILPACK", "cronSchedule": cronSchedule, "dockerfilePath": nil,
 						"drainingSeconds": nil, "healthcheckPath": nil, "healthcheckTimeout": nil,
 						"ipv6EgressEnabled": nil, "numReplicas": nil, "overlapSeconds": nil,
 						"preDeployCommand": nil, "railwayConfigFile": "railway.json", "region": nil,

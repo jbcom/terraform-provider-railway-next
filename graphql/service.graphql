@@ -23,6 +23,7 @@ fragment ServiceInstanceFields on ServiceInstance {
   hasEverDeployed
   buildCommand
   builder
+  cronSchedule
   dockerfilePath
   drainingSeconds
   healthcheckPath
