@@ -129,7 +129,9 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		// reject the apply result.
 		ResolveUnknowns(&plan)
 		ResolveUnknowns(&plan)
-		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		// A timeout or Terraform cancellation must not orphan the volume that
+		// Railway already created; retain context values without cancellation.
+		resp.Diagnostics.Append(resp.State.Set(context.WithoutCancel(ctx), &plan)...)
 	}
 
 	if plan.Name.ValueString() != result.VolumeCreate.Name {
@@ -149,18 +151,29 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	}
 	found, reconcileErr := r.waitForVolumeInstance(ctx, &plan, time.Second)
 	if reconcileErr != nil || !found {
-		detail := "Railway created volume " + plan.ID.ValueString() +
-			" but its instance did not converge to service " + plan.ServiceID.ValueString() +
-			" at mount path " + plan.MountPath.ValueString() +
-			" before the configured create timeout."
-		if reconcileErr != nil {
-			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
-		}
-		resp.Diagnostics.AddError("Unable to confirm Railway volume attachment", detail)
+		summary, detail := volumeAttachmentFailureDiagnostic(&plan, reconcileErr)
+		resp.Diagnostics.AddError(summary, detail)
 		saveState()
 		return
 	}
 	saveState()
+}
+
+func volumeAttachmentFailureDiagnostic(state *volumeModel, err error) (string, string) {
+	identity := "Railway created volume " + state.ID.ValueString()
+	if errors.Is(err, context.Canceled) {
+		return "Railway volume attachment reconciliation canceled",
+			identity + " before Terraform canceled attachment reconciliation. " +
+				"The provider retained the created volume identity in Terraform state."
+	}
+	if err != nil {
+		return "Unable to confirm Railway volume attachment",
+			identity + " but attachment reconciliation failed: " + client.DecodeAPIError(err).Error()
+	}
+	return "Unable to confirm Railway volume attachment",
+		identity + " but its instance did not converge to service " + state.ServiceID.ValueString() +
+			" at mount path " + state.MountPath.ValueString() +
+			" before the configured create timeout."
 }
 
 func (r *Volume) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -357,7 +370,7 @@ func (r *Volume) waitForVolumeInstance(
 	if err != nil {
 		// A timeout means "not there yet", which this signature reports as
 		// `false, nil` — the caller decides whether that is fatal.
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return false, nil
 		}
 		return false, err
