@@ -129,7 +129,9 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 		// reject the apply result.
 		ResolveUnknowns(&plan)
 		ResolveUnknowns(&plan)
-		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		// A timeout or Terraform cancellation must not orphan the volume that
+		// Railway already created; retain context values without cancellation.
+		resp.Diagnostics.Append(resp.State.Set(context.WithoutCancel(ctx), &plan)...)
 	}
 
 	if plan.Name.ValueString() != result.VolumeCreate.Name {
@@ -149,15 +151,29 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	}
 	found, reconcileErr := r.waitForVolumeInstance(ctx, &plan, time.Second)
 	if reconcileErr != nil || !found {
-		detail := "Railway created the volume but did not expose its environment attachment within 30 seconds."
-		if reconcileErr != nil {
-			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
-		}
-		resp.Diagnostics.AddError("Unable to confirm Railway volume creation", detail)
+		summary, detail := volumeAttachmentFailureDiagnostic(&plan, reconcileErr)
+		resp.Diagnostics.AddError(summary, detail)
 		saveState()
 		return
 	}
 	saveState()
+}
+
+func volumeAttachmentFailureDiagnostic(state *volumeModel, err error) (string, string) {
+	identity := "Railway created volume " + state.ID.ValueString()
+	if errors.Is(err, context.Canceled) {
+		return "Railway volume attachment reconciliation canceled",
+			identity + " before Terraform canceled attachment reconciliation. " +
+				"The provider retained the created volume identity in Terraform state."
+	}
+	if err != nil {
+		return "Unable to confirm Railway volume attachment",
+			identity + " but attachment reconciliation failed: " + client.DecodeAPIError(err).Error()
+	}
+	return "Unable to confirm Railway volume attachment",
+		identity + " but its instance did not converge to service " + state.ServiceID.ValueString() +
+			" at mount path " + state.MountPath.ValueString() +
+			" before the configured create timeout."
 }
 
 func (r *Volume) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -323,6 +339,10 @@ func (r *Volume) waitForVolumeInstance(
 	state *volumeModel,
 	interval time.Duration,
 ) (bool, error) {
+	expectedServiceID := state.ServiceID.ValueString()
+	expectedMountPath := state.MountPath.ValueString()
+	expectedInstanceID := ""
+
 	// The ceiling is the CALLER'S timeout — see `awaitConsistency`.
 	err := awaitConsistency(ctx, interval, func(ctx context.Context) error {
 		candidate := *state
@@ -333,13 +353,24 @@ func (r *Volume) waitForVolumeInstance(
 		if !found {
 			return errNotReady
 		}
+		candidateInstanceID := candidate.VolumeInstanceID.ValueString()
+		if expectedInstanceID == "" {
+			expectedInstanceID = candidateInstanceID
+		}
+		// Railway exposes a new instance before its requested attachment fields
+		// converge; existence alone is not a successful create result.
+		if candidateInstanceID == "" || candidateInstanceID != expectedInstanceID ||
+			candidate.ServiceID.ValueString() != expectedServiceID ||
+			candidate.MountPath.ValueString() != expectedMountPath {
+			return errNotReady
+		}
 		*state = candidate
 		return nil
 	})
 	if err != nil {
 		// A timeout means "not there yet", which this signature reports as
 		// `false, nil` — the caller decides whether that is fatal.
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return false, nil
 		}
 		return false, err
