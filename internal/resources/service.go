@@ -43,6 +43,7 @@ type serviceModel struct {
 	ConfigPath             types.String   `tfsdk:"config_path"`
 	Builder                types.String   `tfsdk:"builder"`
 	BuildCommand           types.String   `tfsdk:"build_command"`
+	CronSchedule           types.String   `tfsdk:"cron_schedule"`
 	DockerfilePath         types.String   `tfsdk:"dockerfile_path"`
 	StartCommand           types.String   `tfsdk:"start_command"`
 	PreDeployCommand       types.List     `tfsdk:"pre_deploy_command"`
@@ -129,6 +130,7 @@ func (r *Service) Schema(ctx context.Context, _ resource.SchemaRequest, resp *re
 				},
 			},
 			"build_command":   optionalComputedString("Custom build command."),
+			"cron_schedule":   optionalComputedString("Cron expression that schedules this service."),
 			"dockerfile_path": optionalComputedString("Dockerfile path."),
 			"start_command":   optionalComputedString("Service start command."),
 			"pre_deploy_command": schema.ListAttribute{
@@ -454,6 +456,7 @@ func (r *Service) updateInstance(ctx context.Context, plan *serviceModel, diagno
 	input := railway.ServiceInstanceUpdateInput{
 		BuildCommand:            stringPointer(plan.BuildCommand),
 		Builder:                 builderPointer(plan.Builder),
+		CronSchedule:            stringPointer(plan.CronSchedule),
 		DockerfilePath:          stringPointer(plan.DockerfilePath),
 		DrainingSeconds:         intPointer(plan.DrainingSeconds),
 		HealthcheckPath:         stringPointer(plan.HealthcheckPath),
@@ -669,6 +672,7 @@ func resetServiceOptionalComputedState(state *serviceModel) {
 	state.ConfigPath = types.StringNull()
 	state.Builder = types.StringNull()
 	state.BuildCommand = types.StringNull()
+	state.CronSchedule = types.StringNull()
 	state.DockerfilePath = types.StringNull()
 	state.StartCommand = types.StringNull()
 	state.PreDeployCommand = types.ListNull(types.StringType)
@@ -692,6 +696,7 @@ func setServiceInstanceState(ctx context.Context, state *serviceModel, remote *r
 	state.HasEverDeployed = types.BoolValue(remote.HasEverDeployed)
 	state.BuildCommand = valueString(remote.BuildCommand)
 	state.Builder = types.StringValue(string(remote.Builder))
+	state.CronSchedule = valueString(remote.CronSchedule)
 	state.DockerfilePath = valueString(remote.DockerfilePath)
 	state.DrainingSeconds = intValue(remote.DrainingSeconds)
 	state.HealthcheckPath = valueString(remote.HealthcheckPath)
