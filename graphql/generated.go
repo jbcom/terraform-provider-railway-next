@@ -2364,6 +2364,11 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	return v.ServiceInstanceFields.Builder
 }
 
+// GetCronSchedule returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.CronSchedule, and is useful for accessing the field via an interface.
+func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetCronSchedule() *string {
+	return v.ServiceInstanceFields.CronSchedule
+}
+
 // GetDockerfilePath returns GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance.DockerfilePath, and is useful for accessing the field via an interface.
 func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnectionEdgesEnvironmentServiceInstancesConnectionEdgeNodeServiceInstance) GetDockerfilePath() *string {
 	return v.ServiceInstanceFields.DockerfilePath
@@ -2494,6 +2499,8 @@ type __premarshalGetServiceEnvironmentServiceInstancesEnvironmentServiceInstance
 
 	Builder Builder `json:"builder"`
 
+	CronSchedule *string `json:"cronSchedule"`
+
 	DockerfilePath *string `json:"dockerfilePath"`
 
 	DrainingSeconds *int `json:"drainingSeconds"`
@@ -2549,6 +2556,7 @@ func (v *GetServiceEnvironmentServiceInstancesEnvironmentServiceInstancesConnect
 	retval.HasEverDeployed = v.ServiceInstanceFields.HasEverDeployed
 	retval.BuildCommand = v.ServiceInstanceFields.BuildCommand
 	retval.Builder = v.ServiceInstanceFields.Builder
+	retval.CronSchedule = v.ServiceInstanceFields.CronSchedule
 	retval.DockerfilePath = v.ServiceInstanceFields.DockerfilePath
 	retval.DrainingSeconds = v.ServiceInstanceFields.DrainingSeconds
 	retval.HealthcheckPath = v.ServiceInstanceFields.HealthcheckPath
@@ -4168,6 +4176,7 @@ type ServiceInstanceFields struct {
 	HasEverDeployed         bool                                      `json:"hasEverDeployed"`
 	BuildCommand            *string                                   `json:"buildCommand"`
 	Builder                 Builder                                   `json:"builder"`
+	CronSchedule            *string                                   `json:"cronSchedule"`
 	DockerfilePath          *string                                   `json:"dockerfilePath"`
 	DrainingSeconds         *int                                      `json:"drainingSeconds"`
 	HealthcheckPath         *string                                   `json:"healthcheckPath"`
@@ -4209,6 +4218,9 @@ func (v *ServiceInstanceFields) GetBuildCommand() *string { return v.BuildComman
 
 // GetBuilder returns ServiceInstanceFields.Builder, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetBuilder() Builder { return v.Builder }
+
+// GetCronSchedule returns ServiceInstanceFields.CronSchedule, and is useful for accessing the field via an interface.
+func (v *ServiceInstanceFields) GetCronSchedule() *string { return v.CronSchedule }
 
 // GetDockerfilePath returns ServiceInstanceFields.DockerfilePath, and is useful for accessing the field via an interface.
 func (v *ServiceInstanceFields) GetDockerfilePath() *string { return v.DockerfilePath }
@@ -6928,6 +6940,7 @@ fragment ServiceInstanceFields on ServiceInstance {
 	hasEverDeployed
 	buildCommand
 	builder
+	cronSchedule
 	dockerfilePath
 	drainingSeconds
 	healthcheckPath
