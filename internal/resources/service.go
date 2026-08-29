@@ -537,13 +537,16 @@ func (r *Service) waitForServiceInstance(ctx context.Context, plan *serviceModel
 func (r *Service) refresh(
 	ctx context.Context,
 	state *serviceModel,
-	preserveConfiguredSource bool,
+	preserveConfiguredPlan bool,
 	diagnostics *diag.Diagnostics,
 ) bool {
 	configuredSourceType := state.SourceType
 	configuredRepository := state.Repository
 	configuredImage := state.Image
 	configuredBranch := state.Branch
+	configuredRegion := state.Region
+	configuredMemoryGB := state.MemoryGB
+	configuredVCPUs := state.VCPUs
 	result, err := railway.GetService(
 		ctx,
 		r.client.GraphQL(),
@@ -591,7 +594,7 @@ func (r *Service) refresh(
 	// already-known configured values to satisfy Terraform's post-apply
 	// consistency contract. Ordinary Read never preserves them and therefore
 	// remains authoritative for drift detection.
-	if preserveConfiguredSource && state.SourceType.ValueString() == "empty" &&
+	if preserveConfiguredPlan && state.SourceType.ValueString() == "empty" &&
 		(configuredSourceType.ValueString() == "github" || configuredSourceType.ValueString() == "image") {
 		state.SourceType = configuredSourceType
 		if configuredSourceType.ValueString() == "github" {
@@ -602,8 +605,18 @@ func (r *Service) refresh(
 			state.Image = configuredImage
 		}
 	}
-	if preserveConfiguredSource && !branchFound && !configuredBranch.IsUnknown() {
+	if preserveConfiguredPlan && !branchFound && !configuredBranch.IsUnknown() {
 		state.Branch = configuredBranch
+	}
+	// Railway accepts instance configuration before the value is immediately
+	// visible in GetService. During Create/Update, the protocol requires the
+	// state returned from the operation to agree with configured plan values;
+	// returning null here makes Terraform reject an otherwise-created service
+	// as an inconsistent result. Keep only configured values that the immediate
+	// response has not caught up with. Read deliberately does not take this
+	// path, so a later refresh remains authoritative for drift detection.
+	if preserveConfiguredPlan && state.Region.IsNull() && !configuredRegion.IsUnknown() && !configuredRegion.IsNull() {
+		state.Region = configuredRegion
 	}
 	var opaque serviceEnvironmentConfig
 	if json.Unmarshal(result.Environment.Config, &opaque) == nil {
@@ -631,6 +644,12 @@ func (r *Service) refresh(
 				state.VCPUs = types.Float64Value(*limits.VCPUs)
 			}
 		}
+	}
+	if preserveConfiguredPlan && state.MemoryGB.IsNull() && !configuredMemoryGB.IsUnknown() && !configuredMemoryGB.IsNull() {
+		state.MemoryGB = configuredMemoryGB
+	}
+	if preserveConfiguredPlan && state.VCPUs.IsNull() && !configuredVCPUs.IsUnknown() && !configuredVCPUs.IsNull() {
+		state.VCPUs = configuredVCPUs
 	}
 
 	// THE PRIVATE-NETWORK ADDRESS, read through the same helper the data

@@ -126,6 +126,71 @@ resource "railway_service" "scheduled" {
 	})
 }
 
+// TestServiceProtocolCreatePreservesConfiguredValuesUntilRefresh reproduces
+// Railway returning an incomplete service instance immediately after accepting
+// Create/Update calls. Terraform must receive configured Optional+Computed
+// values from Create, while a subsequent ordinary Read must retain Railway's
+// nulls so drift is still visible.
+func TestServiceProtocolCreatePreservesConfiguredValuesUntilRefresh(t *testing.T) {
+	fixture := serviceFixture{omitImmediateReadValues: true}
+	server := httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
+	defer server.Close()
+
+	config := fmt.Sprintf(`
+provider "railway" {
+  token            = "fixture-token"
+  token_type       = "account"
+  graphql_endpoint = %q
+}
+
+resource "railway_service" "api" {
+  project_id     = "project-fixture"
+  environment_id = "environment-fixture"
+  name           = "api"
+  source_type    = "github"
+  repository     = "owner/repository"
+  branch         = "master"
+  region         = "ams"
+  memory_gb      = 8
+  vcpus          = 2
+}
+`, server.URL)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"railway": providerserver.NewProtocol6WithError(New("test")()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config:             config,
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("railway_service.api", "repository", "owner/repository"),
+					resource.TestCheckResourceAttr("railway_service.api", "branch", "master"),
+					resource.TestCheckResourceAttr("railway_service.api", "region", "ams"),
+					resource.TestCheckResourceAttr("railway_service.api", "memory_gb", "8"),
+					resource.TestCheckResourceAttr("railway_service.api", "vcpus", "2"),
+				),
+			},
+			{
+				// A normal Read must not indefinitely retain planned values. The
+				// fixture still returns null, so refresh persists null and the
+				// configuration correctly produces a non-empty drift plan.
+				RefreshState:       true,
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("railway_service.api", "source_type", "empty"),
+					resource.TestCheckNoResourceAttr("railway_service.api", "repository"),
+					resource.TestCheckNoResourceAttr("railway_service.api", "branch"),
+					resource.TestCheckNoResourceAttr("railway_service.api", "region"),
+					resource.TestCheckNoResourceAttr("railway_service.api", "memory_gb"),
+					resource.TestCheckNoResourceAttr("railway_service.api", "vcpus"),
+				),
+			},
+		},
+	})
+}
+
 func checkNoUnknownState(name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		instance, ok := state.RootModule().Resources[name]
@@ -142,12 +207,13 @@ func checkNoUnknownState(name string) resource.TestCheckFunc {
 }
 
 type serviceFixture struct {
-	mu              sync.Mutex
-	exists          bool
-	connected       bool
-	cronSchedule    string
-	serviceName     string
-	getServiceCalls int
+	mu                      sync.Mutex
+	exists                  bool
+	connected               bool
+	omitImmediateReadValues bool
+	cronSchedule            string
+	serviceName             string
+	getServiceCalls         int
 }
 
 func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +259,8 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		_, _ = io.WriteString(w, `{"data":{"serviceInstanceUpdate":true}}`)
+	case "UpdateServiceInstanceLimits":
+		_, _ = io.WriteString(w, `{"data":{"serviceInstanceLimitsUpdate":true}}`)
 	case "GetEnvironmentPrivateNetworks":
 		// **THE FIXTURE REPORTS NO PRIVATE NETWORK**, which is a real state:
 		// private networking can be disabled. `privatenet.Read` treats
@@ -216,7 +284,7 @@ func (f *serviceFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		repoTriggers := []any{}
 		var source any
-		if f.connected {
+		if f.connected && !f.omitImmediateReadValues {
 			repoTriggers = []any{map[string]any{
 				"node": map[string]any{
 					"id": "trigger-fixture", "environmentId": "environment-fixture",
