@@ -149,11 +149,14 @@ func (r *Volume) Create(ctx context.Context, req resource.CreateRequest, resp *r
 	}
 	found, reconcileErr := r.waitForVolumeInstance(ctx, &plan, time.Second)
 	if reconcileErr != nil || !found {
-		detail := "Railway created the volume but did not expose its environment attachment within 30 seconds."
+		detail := "Railway created volume " + plan.ID.ValueString() +
+			" but its instance did not converge to service " + plan.ServiceID.ValueString() +
+			" at mount path " + plan.MountPath.ValueString() +
+			" before the configured create timeout."
 		if reconcileErr != nil {
 			detail += " Reconciliation returned: " + client.DecodeAPIError(reconcileErr).Error()
 		}
-		resp.Diagnostics.AddError("Unable to confirm Railway volume creation", detail)
+		resp.Diagnostics.AddError("Unable to confirm Railway volume attachment", detail)
 		saveState()
 		return
 	}
@@ -323,6 +326,10 @@ func (r *Volume) waitForVolumeInstance(
 	state *volumeModel,
 	interval time.Duration,
 ) (bool, error) {
+	expectedServiceID := state.ServiceID.ValueString()
+	expectedMountPath := state.MountPath.ValueString()
+	expectedInstanceID := ""
+
 	// The ceiling is the CALLER'S timeout — see `awaitConsistency`.
 	err := awaitConsistency(ctx, interval, func(ctx context.Context) error {
 		candidate := *state
@@ -331,6 +338,17 @@ func (r *Volume) waitForVolumeInstance(
 			return err
 		}
 		if !found {
+			return errNotReady
+		}
+		candidateInstanceID := candidate.VolumeInstanceID.ValueString()
+		if expectedInstanceID == "" {
+			expectedInstanceID = candidateInstanceID
+		}
+		// Railway exposes a new instance before its requested attachment fields
+		// converge; existence alone is not a successful create result.
+		if candidateInstanceID == "" || candidateInstanceID != expectedInstanceID ||
+			candidate.ServiceID.ValueString() != expectedServiceID ||
+			candidate.MountPath.ValueString() != expectedMountPath {
 			return errNotReady
 		}
 		*state = candidate

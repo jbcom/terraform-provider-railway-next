@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"sync"
 	"testing"
 
@@ -74,10 +75,56 @@ resource "railway_volume" "api_data" {
 	}
 }
 
+// TestVolumeProtocolCreateFailsWhenEnvironmentAttachmentNeverConverges pins
+// the failure mode where Railway exposes the new VolumeInstance before its
+// requested service and mount path have converged.
+func TestVolumeProtocolCreateFailsWhenEnvironmentAttachmentNeverConverges(t *testing.T) {
+	fixture := volumeFixture{neverConverge: true}
+	server := httptest.NewServer(http.HandlerFunc(fixture.serveHTTP))
+	defer server.Close()
+
+	config := fmt.Sprintf(`
+provider "railway" {
+  token            = "fixture-token"
+  token_type       = "account"
+  graphql_endpoint = %q
+}
+
+resource "railway_volume" "api_data" {
+  project_id     = "project-fixture"
+  environment_id = "environment-fixture"
+  service_id     = "service-fixture"
+  name           = "api-data"
+  mount_path     = "/data"
+
+  timeouts = {
+    create = "2s"
+  }
+}
+`, server.URL)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"railway": providerserver.NewProtocol6WithError(New("test")()),
+		},
+		Steps: []resource.TestStep{{
+			Config:      config,
+			ExpectError: regexp.MustCompile(`(?s)Unable to confirm Railway volume attachment.*service-fixture.*\/data`),
+		}},
+	})
+
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	if fixture.getVolumeCalls < 2 {
+		t.Fatalf("expected Create to poll until its configured timeout, got %d reads", fixture.getVolumeCalls)
+	}
+}
+
 type volumeFixture struct {
 	mu             sync.Mutex
 	exists         bool
 	getVolumeCalls int
+	neverConverge  bool
 }
 
 func (f *volumeFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -104,16 +151,19 @@ func (f *volumeFixture) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.getVolumeCalls++
-		instances := []any{}
-		if f.getVolumeCalls > 1 {
-			instances = []any{map[string]any{"node": map[string]any{
-				"id": "volume-instance-fixture", "volumeId": "volume-fixture",
-				"environmentId": "environment-fixture", "serviceId": "service-fixture",
-				"mountPath": "/data", "region": "ams", "sizeMB": 500,
-				"currentSizeMB": 0, "isPendingDeletion": false,
-				"deletedAt": nil, "state": "READY",
-			}}}
+		serviceID := any(nil)
+		mountPath := "/tmp"
+		if f.getVolumeCalls > 1 && !f.neverConverge {
+			serviceID = "service-fixture"
+			mountPath = "/data"
 		}
+		instances := []any{map[string]any{"node": map[string]any{
+			"id": "volume-instance-fixture", "volumeId": "volume-fixture",
+			"environmentId": "environment-fixture", "serviceId": serviceID,
+			"mountPath": mountPath, "region": "ams", "sizeMB": 500,
+			"currentSizeMB": 0, "isPendingDeletion": false,
+			"deletedAt": nil, "state": "READY",
+		}}}
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
 			"project": map[string]any{"volumes": map[string]any{"edges": []any{
 				map[string]any{"node": map[string]any{
