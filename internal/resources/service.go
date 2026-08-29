@@ -605,17 +605,19 @@ func (r *Service) refresh(
 			state.Image = configuredImage
 		}
 	}
-	if preserveConfiguredPlan && !branchFound && !configuredBranch.IsUnknown() {
+	// Repo triggers are absent until deployment automation is created, even
+	// though the service source still retains its configured repository. An
+	// absent trigger therefore cannot authoritatively erase the branch.
+	if !branchFound && state.SourceType.ValueString() == "github" &&
+		configuredSourceType.ValueString() == "github" &&
+		state.Repository.ValueString() == configuredRepository.ValueString() &&
+		!configuredBranch.IsUnknown() && !configuredBranch.IsNull() {
 		state.Branch = configuredBranch
 	}
-	// Railway accepts instance configuration before the value is immediately
-	// visible in GetService. During Create/Update, the protocol requires the
-	// state returned from the operation to agree with configured plan values;
-	// returning null here makes Terraform reject an otherwise-created service
-	// as an inconsistent result. Keep only configured values that the immediate
-	// response has not caught up with. Read deliberately does not take this
-	// path, so a later refresh remains authoritative for drift detection.
-	if preserveConfiguredPlan && state.Region.IsNull() && !configuredRegion.IsUnknown() && !configuredRegion.IsNull() {
+	// Railway returns null for configured instance settings that are not
+	// representable in this read response. Preserve prior state only for those
+	// absent fields; explicit API values above remain authoritative.
+	if state.Region.IsNull() && !configuredRegion.IsUnknown() && !configuredRegion.IsNull() {
 		state.Region = configuredRegion
 	}
 	var opaque serviceEnvironmentConfig
@@ -645,10 +647,10 @@ func (r *Service) refresh(
 			}
 		}
 	}
-	if preserveConfiguredPlan && state.MemoryGB.IsNull() && !configuredMemoryGB.IsUnknown() && !configuredMemoryGB.IsNull() {
+	if state.MemoryGB.IsNull() && !configuredMemoryGB.IsUnknown() && !configuredMemoryGB.IsNull() {
 		state.MemoryGB = configuredMemoryGB
 	}
-	if preserveConfiguredPlan && state.VCPUs.IsNull() && !configuredVCPUs.IsUnknown() && !configuredVCPUs.IsNull() {
+	if state.VCPUs.IsNull() && !configuredVCPUs.IsUnknown() && !configuredVCPUs.IsNull() {
 		state.VCPUs = configuredVCPUs
 	}
 
